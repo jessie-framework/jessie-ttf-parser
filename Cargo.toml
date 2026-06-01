@@ -2,6 +2,8 @@
 name = "jessie-ttf-parser"
 version = "0.1.0"
 edition = "2024"
+description = "A TrueType parser that is meant to keep as much information as possible."
+license = "MIT"
 
 [dependencies]
 
