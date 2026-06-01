@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use core::fmt::Display;
 
 use crate::{
     endian::U16BE,
@@ -277,7 +277,7 @@ impl SimpleGlyphFlag {
 }
 
 impl Display for SimpleGlyphFlag {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if self.is_on_curve_point() {
             write!(f, "ON_CURVE_POINT,")?;
         }

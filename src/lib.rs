@@ -1,3 +1,4 @@
+#![no_std]
 //! A TrueType parser that is made to keep as much information as possible.
 //!
 //! ### Usage example :

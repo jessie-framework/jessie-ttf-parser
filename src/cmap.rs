@@ -231,7 +231,7 @@ impl<'a> CmapParser<'a> {
     }
 
     fn parse_byte_encoding_table(&mut self, format: u16) -> Option<CmapByteEncodingTable<'a>> {
-        let length = std::cmp::min(256, self.stream.parse_u16()?);
+        let length = core::cmp::min(256, self.stream.parse_u16()?);
         let language = self.stream.parse_u16()?;
         let glyph_id_array = self.stream.parse_slice(256)?;
         Some(CmapByteEncodingTable {

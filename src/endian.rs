@@ -1,6 +1,6 @@
 #[cfg(target_endian = "little")]
-use std::char;
-use std::fmt::{Debug, Display};
+use core::char;
+use core::fmt::{Debug, Display};
 
 use crate::f2dot14::F2Dot14;
 
@@ -24,13 +24,13 @@ impl U32BE {
 }
 
 impl Display for U32BE {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.into_u32())
     }
 }
 
 impl Debug for U32BE {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self)
     }
 }
@@ -52,13 +52,13 @@ impl U24BE {
 }
 
 impl Display for U24BE {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.into_u32())
     }
 }
 
 impl Debug for U24BE {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self)
     }
 }
@@ -80,12 +80,12 @@ impl U16BE {
 }
 
 impl Display for U16BE {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.into_u16())
     }
 }
 impl Debug for U16BE {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self)
     }
 }
@@ -107,12 +107,12 @@ impl I16BE {
 }
 
 impl Display for I16BE {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.into_i16())
     }
 }
 impl Debug for I16BE {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self)
     }
 }
@@ -142,7 +142,7 @@ impl<'a> UTF16BE<'a> {
 }
 
 impl<'a> Display for UTF16BE<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let chars = self.chars();
         for i in chars.flatten() {
             write!(f, "{i}")?;
@@ -162,13 +162,13 @@ impl F2Dot14BE {
 }
 
 impl Display for F2Dot14BE {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.into_f32())
     }
 }
 
 impl Debug for F2Dot14BE {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self)
     }
 }

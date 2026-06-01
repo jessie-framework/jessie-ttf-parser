@@ -3848,7 +3848,7 @@ impl<'a> OS2Parser<'a> {
     }
 
     pub(crate) fn parse(&mut self) -> Option<OS2Table<'a>> {
-        let version = dbg!(self.stream.parse_u16()?);
+        let version = self.stream.parse_u16()?;
         match version {
             0x0000 => Some(OS2Table::Version0(self.parse_version_0(version)?)),
             0x0001 => Some(OS2Table::Version1(self.parse_version_1(version)?)),

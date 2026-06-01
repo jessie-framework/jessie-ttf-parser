@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 use crate::{
     endian::{F2Dot14BE, U16BE, U32BE},

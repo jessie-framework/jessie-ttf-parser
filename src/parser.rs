@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display};
+use core::fmt::{Debug, Display};
 
 use crate::{cmap::CmapHeader, endian::U32BE, head::HeadTable, hhea::HheaTable, maxp::MaxpTable};
 
@@ -337,8 +337,8 @@ impl Tag {
 }
 
 impl Display for Tag {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Ok(v) = std::str::from_utf8(&self.as_bytes()) {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if let Ok(v) = core::str::from_utf8(&self.as_bytes()) {
             write!(f, "{v}")
         } else {
             write!(f, "")
@@ -347,7 +347,7 @@ impl Display for Tag {
 }
 
 impl Debug for Tag {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self)
     }
 }

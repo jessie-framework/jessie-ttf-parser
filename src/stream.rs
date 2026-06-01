@@ -73,9 +73,8 @@ impl<'a> Stream<'a> {
     }
 
     pub(crate) fn parse_slice<T>(&mut self, length: usize) -> Option<&'a [T]> {
-        debug_assert_eq!(std::mem::align_of::<T>(), 1);
         let ptr = unsafe { self.bytes.as_ptr().add(self.idx) } as *const T;
-        let out = unsafe { std::slice::from_raw_parts(ptr, length) };
+        let out = unsafe { core::slice::from_raw_parts(ptr, length) };
         let size = size_of::<T>() * length;
         if self.idx + size <= self.bytes.len() {
             self.idx += size;
@@ -87,7 +86,8 @@ impl<'a> Stream<'a> {
 
     pub(crate) fn parse_utf8(&mut self, length: usize) -> Option<&'a str> {
         let ptr = unsafe { self.bytes.as_ptr().add(self.idx) };
-        let out = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(ptr, length)) };
+        let out =
+            unsafe { core::str::from_utf8_unchecked(core::slice::from_raw_parts(ptr, length)) };
         if self.idx + length <= self.bytes.len() {
             self.idx += length;
             Some(out)
@@ -99,6 +99,6 @@ impl<'a> Stream<'a> {
     pub(crate) fn parse_slice_rest<T>(&mut self) -> &'a [T] {
         let ptr = &raw const self.bytes[self.idx] as *const T;
         let len = (self.bytes.len() - self.idx) / size_of::<T>();
-        unsafe { std::slice::from_raw_parts(ptr, len) }
+        unsafe { core::slice::from_raw_parts(ptr, len) }
     }
 }
