@@ -1,0 +1,209 @@
+:root {
+  --black: #000000;
+  --chaotica: #101010;
+  --deepspace: #1b1b1b;
+  --space: #2a2a2d;
+  --lacquer: #3e3e3e;
+  --darkgrey: #505050;
+  --grey: #808080;
+  --silver: #a6a6a6;
+  --snow: #f0f0f0;
+  --white: #ffffff;
+  --blush: #e78284;
+  --jade: #90b99f;
+  --earl: #b59efc;
+  --sky: #99bbe0;
+  --mrytle: #e29eca;
+  --maple: #e5c890;
+}
+
+
+:root[data-theme="earl_grey"] {
+  --main-background-color: var(--chaotica);
+  --main-color: var(--silver);
+  --settings-input-color: var(--maple);
+  --settings-input-border-color: var(--grey);
+  --settings-button-color: var(--white);
+  --settings-button-border-focus: var(--white);
+  --sidebar-background-color: var(--chaotica);
+  --sidebar-background-color-hover: var(--deepspace);
+  --sidebar-border-color: var(--darkgrey);
+  --code-block-background-color: var(--chaotica);
+  --scrollbar-track-background-color: transparent;
+  --scrollbar-thumb-background-color: #5c6773;
+  --scrollbar-color: #5c6773 #24292f;
+  --headings-border-bottom-color: #5c6773;
+  --border-color: #5c6773;
+  --button-background-color: #141920;
+  --right-side-color: grey;
+  --code-attribute-color: #999;
+  --toggles-color: #999;
+  --toggle-filter: invert(100%);
+  --mobile-sidebar-menu-filter: invert(100%);
+  --search-input-focused-border-color: #5c6773;
+  /* Same as `--border-color`. */
+  --copy-path-button-color: #fff;
+  --copy-path-img-filter: invert(70%);
+  --copy-path-img-hover-filter: invert(100%);
+  --code-example-button-color: #b2b2b2;
+  --code-example-button-hover-color: #fff;
+  --codeblock-error-hover-color: var(--blush);
+  --codeblock-error-color: var(--blush);
+  --codeblock-ignore-hover-color: var(--maple);
+  --codeblock-ignore-color: var(--maple);
+  --warning-border-color: var(--maple);
+  --type-link-color: var(--maple);
+  --trait-link-color: var(--maple);
+  --assoc-item-link-color: var(--earl);
+  --function-link-color: var(--earl);
+  --macro-link-color: var(--silver);
+  --keyword-link-color: var(--earl);
+  --attribute-link-color: var(--silver);
+  --mod-link-color: var(--earl);
+  --link-color: var(--earl);
+  --sidebar-link-color: var(--earl);
+  --sidebar-current-link-background-color: transparent;
+  --search-result-link-focus-background-color: #3c3c3c;
+  --search-result-border-color: #aaa3;
+  --search-color: #fff;
+  --search-error-code-background-color: #4f4c4c;
+  --search-results-alias-color: #c5c5c5;
+  --search-results-grey-color: #999;
+  --search-tab-title-count-color: #888;
+  --search-tab-button-not-selected-border-top-color: none;
+  --search-tab-button-not-selected-background: transparent !important;
+  --search-tab-button-selected-border-top-color: none;
+  --search-tab-button-selected-background: #141920 !important;
+  --settings-menu-filter: invert(70%);
+  --settings-menu-hover-filter: invert(100%);
+  --stab-background-color: #314559;
+  --stab-code-color: #e6e1cf;
+  --code-highlight-kw-color: var(--earl);
+  --code-highlight-kw-2-color: var(--earl);
+  --code-highlight-lifetime-color: var(--silver);
+  --code-highlight-prelude-color: var(--maple);
+  --code-highlight-prelude-val-color: var(--maple);
+  --code-highlight-number-color: var(--silver);
+  --code-highlight-string-color: var(--silver);
+  --code-highlight-literal-color: var(--maple);
+  --code-highlight-attribute-color: var(--silver);
+  --code-highlight-self-color: var(--silver);
+  --code-highlight-macro-color: var(--silver);
+  --code-highlight-question-mark-color: var(--silver);
+  --code-highlight-comment-color: #788797;
+  --code-highlight-doc-comment-color: var(--grey);
+  --src-line-numbers-span-color: #5c6773;
+  --src-line-number-highlighted-background-color: var(--deepspace);
+  --target-background-color: var(--lacquer);
+  --target-border-color: var(--silver);
+  --kbd-color: #c5c5c5;
+  --kbd-background: #314559;
+  --kbd-box-shadow-color: #5c6773;
+  --rust-logo-filter: drop-shadow(1px 0 0px #fff) drop-shadow(0 1px 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 -1px 0 #fff);
+  /* match border-color; uses https://codepen.io/sosuke/pen/Pjoqqp */
+  --crate-search-div-filter: invert(41%) sepia(12%) saturate(487%) hue-rotate(171deg) brightness(94%) contrast(94%);
+  --crate-search-div-hover-filter: invert(98%) sepia(12%) saturate(81%) hue-rotate(343deg) brightness(113%) contrast(76%);
+  --crate-search-hover-border: #e0e0e0;
+  --src-sidebar-background-selected: #14191f;
+  --src-sidebar-background-hover: #14191f;
+  --table-alt-row-background-color: #191f26;
+  --codeblock-link-background: #333;
+  --scrape-example-toggle-line-background: #999;
+  --scrape-example-toggle-line-hover-background: #c5c5c5;
+  --scrape-example-code-line-highlight: var(--maple);
+  --scrape-example-code-line-highlight-focus: var(--maple);
+  --scrape-example-help-border-color: #aaa;
+  --scrape-example-help-color: #eee;
+  --scrape-example-help-hover-border-color: #fff;
+  --scrape-example-help-hover-color: #fff;
+  --scrape-example-code-wrapper-background-start: rgba(15, 20, 25, 1);
+  --scrape-example-code-wrapper-background-end: rgba(15, 20, 25, 0);
+  --sidebar-resizer-hover: var(--maple);
+  --sidebar-resizer-active: var(--maple);
+}
+
+:root[data-theme="earl_grey"] h1,
+:root[data-theme="earl_grey"] h2,
+:root[data-theme="earl_grey"] h3,
+:root[data-theme="earl_grey"] h4,
+:where(:root[data-theme="earl_grey"]) h1 a,
+:root[data-theme="earl_grey"] .sidebar h2 a,
+:root[data-theme="earl_grey"] .sidebar h3 a {
+  color: #fff;
+}
+
+:root[data-theme="earl_grey"] .docblock code {
+  color: var(--maple);
+}
+
+:root[data-theme="earl_grey"] .docblock a>code {
+  color: var(--earl) !important;
+}
+
+:root[data-theme="earl_grey"] .code-header,
+:root[data-theme="earl_grey"] .docblock pre>code,
+:root[data-theme="earl_grey"] pre,
+:root[data-theme="earl_grey"] pre>code,
+:root[data-theme="earl_grey"] .item-info code,
+:root[data-theme="earl_grey"] .rustdoc.source .example-wrap {
+  color: var(--silver);
+}
+
+:root[data-theme="earl_grey"] .sidebar .current,
+:root[data-theme="earl_grey"] .sidebar .current a,
+:root[data-theme="earl_grey"] .sidebar a:hover,
+:root[data-theme="earl_grey"] #src-sidebar div.files>a:hover,
+:root[data-theme="earl_grey"] details.dir-entry summary:hover,
+:root[data-theme="earl_grey"] #src-sidebar div.files>a:focus,
+:root[data-theme="earl_grey"] details.dir-entry summary:focus,
+:root[data-theme="earl_grey"] #src-sidebar div.files>a.selected {
+  color: var(--maple);
+}
+
+:root[data-theme="earl_grey"] .sidebar-elems .location {
+  color: var(--maple);
+}
+
+:root[data-theme="earl_grey"] a[data-nosnippet].line-highlighted {
+  color: var(--deepspace);
+  padding-right: 7px;
+  border-right: 1px solid var(--deepspace);
+}
+
+:root[data-theme="earl_grey"] .search-results a:hover,
+:root[data-theme="earl_grey"] .search-results a:focus {
+  color: #fff !important;
+  background-color: #3c3c3c;
+}
+
+:root[data-theme="earl_grey"] .search-results a {
+  color: var(--earl);
+}
+
+:root[data-theme="earl_grey"] .search-results a div.desc {
+  color: #c5c5c5;
+}
+
+:root[data-theme="earl_grey"] .result-name .primitive>i,
+:root[data-theme="earl_grey"] .result-name .keyword>i {
+  color: #788797;
+}
+
+:root[data-theme="earl_grey"] #search-tabs>button.selected {
+  border-bottom: 1px solid var(--earl) !important;
+  border-top: none;
+}
+
+:root[data-theme="earl_grey"] #search-tabs>button:not(.selected) {
+  border: none;
+  background-color: transparent !important;
+}
+
+:root[data-theme="earl_grey"] #search-tabs>button:hover {
+  border-bottom: 1px solid var(--earl);
+}
+
+:root[data-theme="earl_grey"] .settings-menu>a img,
+:root[data-theme="earl_grey"] #sidebar-button>a::before {
+  filter: invert(100);
+}

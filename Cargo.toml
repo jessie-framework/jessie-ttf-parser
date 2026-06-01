@@ -7,4 +7,4 @@ edition = "2024"
 
 [package.metadata.docs.rs]
 
-rustdoc-args = ["--theme" , "~/code/earl-grey-docs-rs/earl_grey.css"]
+rustdoc-args = ["--theme" , "./earl_grey.css","--default-theme=earl_grey"]
