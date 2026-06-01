@@ -1,0 +1,10 @@
+[package]
+name = "jessie-ttf-parser"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[package.metadata.docs.rs]
+
+rustdoc-args = ["--theme" , "~/code/earl-grey-docs-rs/earl_grey.css"]
