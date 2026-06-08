@@ -16,8 +16,8 @@ impl<'a> LocaTable<'a> {
     pub fn get_glyphid(&self, input: GlyphId) -> Option<LocaOffset> {
         match self {
             LocaTable::ShortFormat(t) => {
-                let start = t.offsets.get(input.0 as usize)?.into_u16() as u32;
-                let end = t.offsets.get(input.0 as usize + 1)?.into_u16() as u32;
+                let start = t.offsets.get(input.0 as usize)?.into_u16() as u32 * 2;
+                let end = t.offsets.get(input.0 as usize + 1)?.into_u16() as u32 * 2;
                 Some(LocaOffset { start, end })
             }
             LocaTable::LongFormat(t) => {
