@@ -1,5 +1,5 @@
 #![no_std]
-//! A TrueType parser that is made to keep as much information as possible.
+//! A `const` TrueType parser that is made to keep as much information as possible.
 //!
 //! ### Usage example :
 //!
@@ -69,7 +69,11 @@ pub mod prep;
 mod stream;
 /// SVG table implementation.
 pub mod svg;
+/// Tags for tables.
+pub mod tag;
 /// uint16 that describes a quantity in font design units.
 pub mod ufword;
+/// Utilities for the crate.
+mod util;
 /// VORG table implementation.
 pub mod vorg;

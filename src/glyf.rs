@@ -6,6 +6,7 @@ use crate::{
     loca::LocaOffset,
     parser::{Parser, TableRecord},
     stream::Stream,
+    util::{slice_first, slice_get, slice_last, slice_range},
 };
 
 pub struct GlyfTable<'a> {
@@ -13,15 +14,15 @@ pub struct GlyfTable<'a> {
 }
 
 impl<'a> GlyfTable<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self { bytes }
     }
 
-    pub fn index(&self, input: LocaOffset) -> Option<GlyphDescription<'a>> {
+    pub const fn index(&self, input: LocaOffset) -> Option<GlyphDescription<'a>> {
         match input.has_no_outline_or_instructions() {
             true => None,
             false => {
-                let bytes = &self.bytes[input.start as usize..input.end as usize];
+                let bytes = slice_range(self.bytes, input.start as usize..input.end as usize);
                 let mut parser = GlyfParser::new(bytes);
                 parser.parse()
             }
@@ -75,7 +76,7 @@ pub struct CompositeGlyphDescription<'a> {
 }
 
 impl<'a> CompositeGlyphDescription<'a> {
-    pub fn iter_glyphs(&self) -> ComponentGlyphIter<'a> {
+    pub const fn iter_glyphs(&self) -> ComponentGlyphIter<'a> {
         ComponentGlyphIter::new(self.data)
     }
 }
@@ -104,30 +105,45 @@ pub struct ComponentGlyphIter<'a> {
 }
 
 impl<'a> ComponentGlyphIter<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
             ended: false,
         }
     }
-}
 
-impl<'a> Iterator for ComponentGlyphIter<'a> {
-    type Item = ComponentGlyph;
-    fn next(&mut self) -> Option<Self::Item> {
+    pub const fn next(&mut self) -> Option<ComponentGlyph> {
         if self.ended {
             return None;
         }
-        let flags = ComponentGlyphFlags(self.stream.parse_u16()?);
-        let glyph_index = self.stream.parse_u16()?;
+        let flags = ComponentGlyphFlags(match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        });
+        let glyph_index = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         let argument_1;
         let argument_2;
         if flags.args_1_and_2_are_words() {
-            argument_1 = self.stream.parse_i16()?;
-            argument_2 = self.stream.parse_i16()?;
+            argument_1 = match self.stream.parse_i16() {
+                Some(v) => v,
+                _ => return None,
+            };
+            argument_2 = match self.stream.parse_i16() {
+                Some(v) => v,
+                _ => return None,
+            };
         } else {
-            argument_1 = self.stream.parse_i8()? as i16;
-            argument_2 = self.stream.parse_i8()? as i16;
+            argument_1 = match self.stream.parse_i8() {
+                Some(v) => v,
+                _ => return None,
+            } as i16;
+            argument_2 = match self.stream.parse_i8() {
+                Some(v) => v,
+                _ => return None,
+            } as i16;
         }
 
         let mut scale = F2Dot14::default();
@@ -137,20 +153,42 @@ impl<'a> Iterator for ComponentGlyphIter<'a> {
         let mut scale_10 = F2Dot14::default();
 
         if flags.we_have_a_scale() {
-            scale = self.stream.parse_f2_dot_14()?;
+            scale = match self.stream.parse_f2_dot_14() {
+                Some(v) => v,
+                _ => return None,
+            };
         } else if flags.we_have_an_x_and_y_scale() {
-            x_scale = self.stream.parse_f2_dot_14()?;
-            y_scale = self.stream.parse_f2_dot_14()?;
+            x_scale = match self.stream.parse_f2_dot_14() {
+                Some(v) => v,
+                _ => return None,
+            };
+            y_scale = match self.stream.parse_f2_dot_14() {
+                Some(v) => v,
+                _ => return None,
+            };
         } else if flags.we_have_a_two_by_two() {
-            x_scale = self.stream.parse_f2_dot_14()?;
-            scale_01 = self.stream.parse_f2_dot_14()?;
-            scale_10 = self.stream.parse_f2_dot_14()?;
-            y_scale = self.stream.parse_f2_dot_14()?;
+            x_scale = match self.stream.parse_f2_dot_14() {
+                Some(v) => v,
+                _ => return None,
+            };
+            scale_01 = match self.stream.parse_f2_dot_14() {
+                Some(v) => v,
+                _ => return None,
+            };
+            scale_10 = match self.stream.parse_f2_dot_14() {
+                Some(v) => v,
+                _ => return None,
+            };
+            y_scale = match self.stream.parse_f2_dot_14() {
+                Some(v) => v,
+                _ => return None,
+            };
         }
 
         if !flags.more_components() {
             self.ended = true;
         }
+
         Some(ComponentGlyph {
             flags,
             glyph_index,
@@ -165,68 +203,75 @@ impl<'a> Iterator for ComponentGlyphIter<'a> {
     }
 }
 
+impl<'a> Iterator for ComponentGlyphIter<'a> {
+    type Item = ComponentGlyph;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ComponentGlyphFlags(u16);
 
 impl ComponentGlyphFlags {
     /// Bit 0: If this is set, the arguments are 16-bit (uint16 or int16); otherwise, they are bytes (uint8 or int8).
-    pub fn args_1_and_2_are_words(self) -> bool {
+    pub const fn args_1_and_2_are_words(self) -> bool {
         self.0 & 0x0001 != 0
     }
 
     /// Bit 1: If this is set, the arguments are signed xy values; otherwise, they are unsigned point numbers.
-    pub fn args_are_xy_values(self) -> bool {
+    pub const fn args_are_xy_values(self) -> bool {
         self.0 & 0x0002 != 0
     }
 
     /// Bit 2: If set and ARGS_ARE_XY_VALUES is also set, the xy values are rounded to the nearest grid line. Ignored if ARGS_ARE_XY_VALUES is not set.
-    pub fn round_xy_to_grid(self) -> bool {
+    pub const fn round_xy_to_grid(self) -> bool {
         self.0 & 0x0004 != 0
     }
 
     /// Bit 3: This indicates that there is a simple scale for the component. Otherwise, scale = 1.0.
-    pub fn we_have_a_scale(self) -> bool {
+    pub const fn we_have_a_scale(self) -> bool {
         self.0 & 0x0008 != 0
     }
 
     /// Bit 5: Indicates at least one more glyph after this one.
-    pub fn more_components(self) -> bool {
+    pub const fn more_components(self) -> bool {
         self.0 & 0x0020 != 0
     }
 
     /// Bit 6: The x direction will use a different scale from the y direction.
-    pub fn we_have_an_x_and_y_scale(self) -> bool {
+    pub const fn we_have_an_x_and_y_scale(self) -> bool {
         self.0 & 0x0040 != 0
     }
 
     /// Bit 7: There is a 2 by 2 transformation that will be used to scale the component.
-    pub fn we_have_a_two_by_two(self) -> bool {
+    pub const fn we_have_a_two_by_two(self) -> bool {
         self.0 & 0x0080 != 0
     }
 
     /// Bit 8: Following the last component are instructions for the composite glyph.
-    pub fn we_have_instructions(self) -> bool {
+    pub const fn we_have_instructions(self) -> bool {
         self.0 & 0x0100 != 0
     }
 
     /// Bit 9: If set, this forces the aw and lsb (and rsb) for the composite to be equal to those from this component glyph. This works for hinted and unhinted glyphs.
-    pub fn use_my_metrics(self) -> bool {
+    pub const fn use_my_metrics(self) -> bool {
         self.0 & 0x0200 != 0
     }
 
     /// Bit 10: If set, the components of the compound glyph overlap. Use of this flag is not required — that is, component glyphs may overlap without having this flag set. When used, it must be set on the flag word for the first component. Some rasterizer implementations may require fonts to use this flag to obtain correct behavior — see additional remarks, above, for the similar OVERLAP_SIMPLE flag used in simple-glyph descriptions.
-    pub fn overlap_compound(self) -> bool {
+    pub const fn overlap_compound(self) -> bool {
         self.0 & 0x0400 != 0
     }
 
     /// Bit 11: The composite is designed to have the component offset scaled. Ignored if ARGS_ARE_XY_VALUES is not set.
-    pub fn scaled_component_offset(self) -> bool {
+    pub const fn scaled_component_offset(self) -> bool {
         self.0 & 0x0800 != 0
     }
 
     /// Bit 12: The composite is designed not to have the component offset scaled. Ignored if ARGS_ARE_XY_VALUES is not set.
-    pub fn unscaled_component_offset(self) -> bool {
+    pub const fn unscaled_component_offset(self) -> bool {
         self.0 & 0x1000 != 0
     }
 }
@@ -236,42 +281,42 @@ impl ComponentGlyphFlags {
 pub struct SimpleGlyphFlag(u8);
 
 impl SimpleGlyphFlag {
-    pub fn as_u8(self) -> u8 {
+    pub const fn as_u8(self) -> u8 {
         self.0
     }
 
     /// Bit 0: If set, the point is on the curve; otherwise, it is off the curve.
-    pub fn is_on_curve_point(&self) -> bool {
+    pub const fn is_on_curve_point(&self) -> bool {
         self.0 & 0x01 != 0
     }
 
     /// Bit 1: If set, the corresponding x-coordinate is 1 byte long, and the sign is determined by the X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR flag. If not set, its interpretation depends on the X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR flag: If that other flag is set, the x-coordinate is the same as the previous x-coordinate, and no element is added to the xCoordinates array. If both flags are not set, the corresponding element in the xCoordinates array is two bytes and interpreted as a signed integer. See the description of the X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR flag for additional information.
-    pub fn is_x_short_vector(&self) -> bool {
+    pub const fn is_x_short_vector(&self) -> bool {
         self.0 & 0x02 != 0
     }
 
     /// Bit 2: If set, the corresponding y-coordinate is 1 byte long, and the sign is determined by the Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR flag. If not set, its interpretation depends on the Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR flag: If that other flag is set, the y-coordinate is the same as the previous y-coordinate, and no element is added to the yCoordinates array. If both flags are not set, the corresponding element in the yCoordinates array is two bytes and interpreted as a signed integer. See the description of the Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR flag for additional information.
-    pub fn is_y_short_vector(&self) -> bool {
+    pub const fn is_y_short_vector(&self) -> bool {
         self.0 & 0x04 != 0
     }
 
     /// Bit 3: If set, the next byte (read as unsigned) specifies the number of additional times this flag byte is to be repeated in the logical flags array — that is, the number of additional logical flag entries inserted after this entry. (In the expanded logical array, this bit is ignored.) In this way, the number of flags listed can be smaller than the number of points in the glyph description.
-    pub fn is_repeat_flag(&self) -> bool {
+    pub const fn is_repeat_flag(&self) -> bool {
         self.0 & 0x08 != 0
     }
 
     /// Bit 4: This flag has two meanings, depending on how the X_SHORT_VECTOR flag is set. If X_SHORT_VECTOR is set, this bit describes the sign of the value, with 1 equaling positive and 0 negative. If X_SHORT_VECTOR is not set and this bit is set, then the current x-coordinate is the same as the previous x-coordinate. If X_SHORT_VECTOR is not set and this bit is also not set, the current x-coordinate is a signed 16-bit delta vector.C
-    pub fn is_x_is_same_or_positive_x_short_vector(&self) -> bool {
+    pub const fn is_x_is_same_or_positive_x_short_vector(&self) -> bool {
         self.0 & 0x10 != 0
     }
 
     /// Bit 5: This flag has two meanings, depending on how the Y_SHORT_VECTOR flag is set. If Y_SHORT_VECTOR is set, this bit describes the sign of the value, with 1 equaling positive and 0 negative. If Y_SHORT_VECTOR is not set and this bit is set, then the current y-coordinate is the same as the previous y-coordinate. If Y_SHORT_VECTOR is not set and this bit is also not set, the current y-coordinate is a signed 16-bit delta vector.
-    pub fn is_y_is_same_or_positive_y_short_vector(&self) -> bool {
+    pub const fn is_y_is_same_or_positive_y_short_vector(&self) -> bool {
         self.0 & 0x20 != 0
     }
 
     ///  Bit 6: If set, contours in the glyph description could overlap. Use of this flag is not required — that is, contours may overlap without having this flag set. When used, it must be set on the first flag byte for the glyph. See additional details below.
-    pub fn is_overlap_simple(&self) -> bool {
+    pub const fn is_overlap_simple(&self) -> bool {
         self.0 & 0x40 != 0
     }
 }
@@ -308,22 +353,28 @@ pub(crate) struct CoordsIter<'a> {
 }
 
 impl<'a> CoordsIter<'a> {
-    fn new(bytes: &'a [u8]) -> Self {
+    const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
             prev: 0,
         }
     }
 
-    fn next(&mut self, is_short: bool, is_same_or_short: bool) -> i16 {
+    const fn next(&mut self, is_short: bool, is_same_or_short: bool) -> i16 {
         let mut n = 0;
         if is_short {
-            n = self.stream.parse_u8().unwrap_or(0) as i16;
+            n = match self.stream.parse_u8() {
+                Some(v) => v,
+                _ => 0,
+            } as i16;
             if !is_same_or_short {
                 n = -n;
             }
         } else if !is_same_or_short {
-            n = self.stream.parse_i16().unwrap_or(0);
+            n = match self.stream.parse_i16() {
+                Some(v) => v,
+                _ => 0,
+            };
         }
         self.prev = self.prev.wrapping_add(n);
         self.prev
@@ -337,12 +388,30 @@ pub(crate) struct FlagsIter<'a> {
 }
 
 impl<'a> FlagsIter<'a> {
-    fn new(bytes: &'a [u8]) -> Self {
+    const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
             repeat: 0,
             prev: SimpleGlyphFlag(0),
         }
+    }
+
+    const fn next(&mut self) -> Option<SimpleGlyphFlag> {
+        if self.repeat == 0 {
+            self.prev = SimpleGlyphFlag(match self.stream.parse_u8() {
+                Some(v) => v,
+                _ => 0,
+            });
+            if self.prev.is_repeat_flag() {
+                self.repeat = match self.stream.parse_u8() {
+                    Some(v) => v,
+                    _ => 0,
+                };
+            }
+        } else {
+            self.repeat -= 1;
+        }
+        Some(self.prev)
     }
 }
 
@@ -350,15 +419,7 @@ impl<'a> Iterator for FlagsIter<'a> {
     type Item = SimpleGlyphFlag;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.repeat == 0 {
-            self.prev = SimpleGlyphFlag(self.stream.parse_u8().unwrap_or(0));
-            if self.prev.is_repeat_flag() {
-                self.repeat = self.stream.parse_u8().unwrap_or(0);
-            }
-        } else {
-            self.repeat -= 1;
-        }
-        Some(self.prev)
+        self.next()
     }
 }
 
@@ -377,22 +438,24 @@ pub struct EndpointsIter<'a> {
 }
 
 impl<'a> EndpointsIter<'a> {
-    fn new(endpoints: &'a [U16BE]) -> Option<Self> {
+    const fn new(endpoints: &'a [U16BE]) -> Option<Self> {
         Some(Self {
             endpoints,
             idx: 1,
-            left: endpoints.first()?.into_u16(),
+            left: match slice_first(endpoints) {
+                Some(v) => v.into_u16(),
+                _ => return None,
+            },
         })
     }
 
-    fn next(&mut self) -> bool {
+    const fn next(&mut self) -> bool {
         if self.left == 0 {
-            if let Some(end) = self.endpoints.get(self.idx as usize) {
-                let prev = self
-                    .endpoints
-                    .get(self.idx as usize - 1)
-                    .unwrap_or(&U16BE(0))
-                    .into_u16();
+            if let Some(end) = slice_get(self.endpoints, self.idx as usize) {
+                let prev = match slice_get(self.endpoints, self.idx as usize - 1) {
+                    Some(v) => v.into_u16(),
+                    _ => 0,
+                };
                 self.left = end.into_u16().saturating_sub(prev);
                 self.left = self.left.saturating_sub(1);
             }
@@ -410,7 +473,7 @@ impl<'a> EndpointsIter<'a> {
 }
 
 impl<'a> PointsIter<'a> {
-    pub(crate) fn new(
+    pub(crate) const fn new(
         endpoints: &'a [U16BE],
         flags: &'a [u8],
         x_coordinates: &'a [u8],
@@ -418,29 +481,28 @@ impl<'a> PointsIter<'a> {
         points_total: u16,
     ) -> Option<Self> {
         Some(Self {
-            endpoints: EndpointsIter::new(endpoints)?,
+            endpoints: match EndpointsIter::new(endpoints) {
+                Some(v) => v,
+                _ => return None,
+            },
             flags: FlagsIter::new(flags),
             x_coordinates: CoordsIter::new(x_coordinates),
             y_coordinates: CoordsIter::new(y_coordinates),
             points_left: points_total,
         })
     }
-}
 
-pub struct PointsIter<'a> {
-    endpoints: EndpointsIter<'a>,
-    flags: FlagsIter<'a>,
-    x_coordinates: CoordsIter<'a>,
-    y_coordinates: CoordsIter<'a>,
-    points_left: u16,
-}
-impl<'a> Iterator for PointsIter<'a> {
-    type Item = Point;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.points_left = self.points_left.checked_sub(1)?;
+    pub const fn next(&mut self) -> Option<Point> {
+        self.points_left = match self.points_left.checked_sub(1) {
+            Some(v) => v,
+            _ => return None,
+        };
 
         let last_point = self.endpoints.next();
-        let flags = self.flags.next()?;
+        let flags = match self.flags.next() {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(Point {
             x: self.x_coordinates.next(
                 flags.is_x_short_vector(),
@@ -456,13 +518,36 @@ impl<'a> Iterator for PointsIter<'a> {
     }
 }
 
+pub struct PointsIter<'a> {
+    endpoints: EndpointsIter<'a>,
+    flags: FlagsIter<'a>,
+    x_coordinates: CoordsIter<'a>,
+    y_coordinates: CoordsIter<'a>,
+    points_left: u16,
+}
+impl<'a> Iterator for PointsIter<'a> {
+    type Item = Point;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next()
+    }
+}
+
 impl<'a> SimpleGlyphDescription<'a> {
-    pub fn get_flag(&self, idx: usize) -> Option<SimpleGlyphFlag> {
-        self.flags.get(idx).copied().map(SimpleGlyphFlag)
+    pub const fn get_flag(&self, idx: usize) -> Option<SimpleGlyphFlag> {
+        match slice_get(self.flags, idx) {
+            Some(v) => Some(SimpleGlyphFlag(*v)),
+            _ => None,
+        }
     }
 
-    pub fn iter_points(&self) -> Option<PointsIter<'a>> {
-        let total_points = self.end_pts_of_contours.last()?.into_u16().checked_add(1)?;
+    pub const fn iter_points(&self) -> Option<PointsIter<'a>> {
+        let total_points = match slice_last(self.end_pts_of_contours) {
+            Some(v) => match v.into_u16().checked_add(1) {
+                Some(v) => v,
+                _ => return None,
+            },
+            _ => return None,
+        };
         PointsIter::new(
             self.end_pts_of_contours,
             self.flags,
@@ -478,33 +563,71 @@ pub(crate) struct GlyfParser<'a> {
 }
 
 impl<'a> GlyfParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<GlyphDescription<'a>> {
-        let number_of_contours = self.stream.parse_i16()?;
-        let x_min = self.stream.parse_i16()?;
-        let y_min = self.stream.parse_i16()?;
-        let x_max = self.stream.parse_i16()?;
-        let y_max = self.stream.parse_i16()?;
+    pub(crate) const fn parse(&mut self) -> Option<GlyphDescription<'a>> {
+        let number_of_contours = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let x_min = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let y_min = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let x_max = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let y_max = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
         if number_of_contours >= 0 {
-            let end_pts_of_contours = self.stream.parse_slice(number_of_contours as usize)?;
-            let num_flags = end_pts_of_contours
-                .last()
-                .unwrap_or(&U16BE(0))
-                .into_u16()
-                .checked_add(1)?;
-            let instruction_length = self.stream.parse_u16()?;
-            let instructions = self.stream.parse_slice(instruction_length as usize)?;
+            let end_pts_of_contours: &[U16BE] =
+                match self.stream.parse_slice(number_of_contours as usize) {
+                    Some(v) => v,
+                    _ => return None,
+                };
+            let num_flags = match match slice_last(end_pts_of_contours) {
+                Some(v) => v.into_u16(),
+                _ => 0,
+            }
+            .checked_add(1)
+            {
+                Some(v) => v,
+                _ => return None,
+            };
+            let instruction_length = match self.stream.parse_u16() {
+                Some(v) => v,
+                _ => return None,
+            };
+            let instructions = match self.stream.parse_slice(instruction_length as usize) {
+                Some(v) => v,
+                _ => return None,
+            };
             let flags_start = self.stream.idx;
-            let (x_len, y_len) = Self::x_y_len(&mut self.stream, num_flags)?;
+            let (x_len, y_len) = match Self::x_y_len(&mut self.stream, num_flags) {
+                Some(v) => v,
+                _ => return None,
+            };
             let flags_end = self.stream.idx;
-            let flags = &self.stream.bytes[flags_start..flags_end];
-            let x_coordinates = self.stream.parse_slice(x_len as usize)?;
-            let y_coordinates = self.stream.parse_slice(y_len as usize)?;
+            let flags = slice_range(self.stream.bytes, flags_start..flags_end);
+            let x_coordinates = match self.stream.parse_slice(x_len as usize) {
+                Some(v) => v,
+                _ => return None,
+            };
+            let y_coordinates = match self.stream.parse_slice(y_len as usize) {
+                Some(v) => v,
+                _ => return None,
+            };
             Some(GlyphDescription::SimpleGlyphDescription(
                 SimpleGlyphDescription {
                     number_of_contours,
@@ -535,14 +658,21 @@ impl<'a> GlyfParser<'a> {
         }
     }
 
-    pub(crate) fn x_y_len(stream: &mut Stream<'a>, num_flags: u16) -> Option<(u32, u32)> {
+    pub(crate) const fn x_y_len(stream: &mut Stream<'a>, num_flags: u16) -> Option<(u32, u32)> {
         let mut flags_left = num_flags as u32;
         let mut x_len = 0;
         let mut y_len = 0;
         while flags_left > 0 {
-            let f = SimpleGlyphFlag(stream.parse_u8()?);
+            let f = SimpleGlyphFlag(match stream.parse_u8() {
+                Some(v) => v,
+                _ => return None,
+            });
             let count = if f.is_repeat_flag() {
-                stream.parse_u8()? as u32 + 1
+                (match stream.parse_u8() {
+                    Some(v) => v,
+                    _ => return None,
+                }) as u32
+                    + 1
             } else {
                 1
             };
@@ -563,10 +693,13 @@ impl<'a> GlyfParser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_glyf(&self, input: TableRecord) -> Option<GlyfTable<'a>> {
+    pub const fn parse_glyf(&self, input: TableRecord) -> Option<GlyfTable<'a>> {
         if input.table_tag.is_glyf() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             return Some(GlyfTable::new(bytes));
         }
         None

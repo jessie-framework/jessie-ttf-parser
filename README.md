@@ -1,6 +1,6 @@
 # jessie-ttf-parser
 
-A TrueType parser that is made to keep as much information as possible.
+A `const` TrueType parser that is made to keep as much information as possible.
 
 ### Usage example :
 

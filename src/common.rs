@@ -2,8 +2,9 @@ use core::marker::PhantomData;
 
 use crate::{
     endian::{F2Dot14BE, U16BE, U32BE},
-    parser::Tag,
     stream::Stream,
+    tag::Tag,
+    util::slice_rest,
 };
 
 #[repr(C)]
@@ -23,19 +24,31 @@ pub struct ItemVariationStore<'a, D = i8> {
 }
 
 impl<'a, D> ItemVariationStore<'a, D> {
-    pub fn parse_item_variation_data(
+    pub const fn parse_item_variation_data(
         &self,
         input: ItemVariationDataOffset,
     ) -> Option<ItemVariationData<'a, D>> {
         if input.0.into_u32() == 0 {
             return None;
         }
-        let mut stream = Stream::new(&self.data[input.0.into_u32() as usize..]);
+        let mut stream = Stream::new(slice_rest(self.data, input.0.into_u32() as usize));
         let data = stream.bytes;
-        let item_count = stream.parse_u16()?;
-        let word_delta_count = WordDeltaCount(stream.parse_u16()?);
-        let region_index_count = stream.parse_u16()?;
-        let region_indexes = stream.parse_slice(region_index_count as usize)?;
+        let item_count = match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let word_delta_count = WordDeltaCount(match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        });
+        let region_index_count = match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let region_indexes = match stream.parse_slice(region_index_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         let _pd = PhantomData;
         Some(ItemVariationData {
             item_count,
@@ -70,18 +83,21 @@ pub struct WordDeltaCount(u16);
 
 impl WordDeltaCount {
     /// Flag indicating that “word” deltas are long (int32)
-    pub fn long_words(self) -> bool {
+    #[inline]
+    pub const fn long_words(self) -> bool {
         self.0 & 0x8000 != 0
     }
 
     /// Count of “word” deltas
-    pub fn word_delta_count_mask(self) -> u16 {
+    #[inline]
+    pub const fn word_delta_count_mask(self) -> u16 {
         self.0 ^ 0x7FFF
     }
 }
 
 impl<'a, D> ItemVariationData<'a, D> {
-    pub fn iter_delta_sets(&self) -> DeltaSetIter<'a, D> {
+    #[inline]
+    pub const fn iter_delta_sets(&self) -> DeltaSetIter<'a, D> {
         DeltaSetIter::new(self.data, self.word_delta_count.long_words())
     }
 }
@@ -93,7 +109,7 @@ pub struct DeltaSetIter<'a, D> {
 }
 
 impl<'a, D> DeltaSetIter<'a, D> {
-    pub(crate) fn new(bytes: &'a [u8], is_long: bool) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8], is_long: bool) -> Self {
         Self {
             stream: Stream::new(bytes),
             _pd: PhantomData,
@@ -102,23 +118,41 @@ impl<'a, D> DeltaSetIter<'a, D> {
     }
 }
 
-impl<'a> Iterator for DeltaSetIter<'a, i8> {
-    type Item = i16;
-    fn next(&mut self) -> Option<Self::Item> {
+impl<'a> DeltaSetIter<'a, i8> {
+    pub(crate) const fn next(&mut self) -> Option<i16> {
         if self.is_long {
             return self.stream.parse_i16();
         }
-        self.stream.parse_i8().map(i16::from)
+        Some(match self.stream.parse_i8() {
+            Some(v) => v,
+            _ => return None,
+        } as i16)
+    }
+}
+
+impl<'a> DeltaSetIter<'a, i16> {
+    pub(crate) const fn next(&mut self) -> Option<i32> {
+        if self.is_long {
+            return self.stream.parse_i32();
+        }
+        Some(match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        } as i32)
+    }
+}
+
+impl<'a> Iterator for DeltaSetIter<'a, i8> {
+    type Item = i16;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next()
     }
 }
 
 impl<'a> Iterator for DeltaSetIter<'a, i16> {
     type Item = i32;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.is_long {
-            return self.stream.parse_i32();
-        }
-        self.stream.parse_i16().map(i32::from)
+        self.next()
     }
 }
 
@@ -128,20 +162,31 @@ pub(crate) struct ItemVariationStoreParser<'a, D = i8> {
 }
 
 impl<'a, D> ItemVariationStoreParser<'a, D> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
             _pd: PhantomData,
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<ItemVariationStore<'a, D>> {
-        let format = self.stream.parse_u16()?;
-        let variation_region_list_offset = self.stream.parse_u32()?;
-        let item_variation_data_count = self.stream.parse_u16()?;
-        let item_variation_data_offsets = self
-            .stream
-            .parse_slice(item_variation_data_count as usize)?;
+    pub(crate) const fn parse(&mut self) -> Option<ItemVariationStore<'a, D>> {
+        let format = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let variation_region_list_offset = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let item_variation_data_count = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let item_variation_data_offsets =
+            match self.stream.parse_slice(item_variation_data_count as usize) {
+                Some(v) => v,
+                _ => return None,
+            };
         let variation_region_list =
             self.parse_variation_region_list_from_offset(variation_region_list_offset);
         let data = self.stream.parse_slice_rest();
@@ -157,21 +202,27 @@ impl<'a, D> ItemVariationStoreParser<'a, D> {
         })
     }
 
-    pub(crate) fn parse_variation_region_list_from_offset(
+    pub(crate) const fn parse_variation_region_list_from_offset(
         &mut self,
         offset: u32,
     ) -> Option<VariationRegionList<'a>> {
         if offset == 0 {
             return None;
         }
-        let mut stream = Self::new(&self.stream.bytes[offset as usize..]);
+        let mut stream = Self::new(slice_rest(self.stream.bytes, offset as usize));
         stream.parse_variation_region_list()
     }
 
-    pub(crate) fn parse_variation_region_list(&mut self) -> Option<VariationRegionList<'a>> {
+    pub(crate) const fn parse_variation_region_list(&mut self) -> Option<VariationRegionList<'a>> {
         let data = self.stream.bytes;
-        let axis_count = self.stream.parse_u16()?;
-        let region_count = self.stream.parse_u16()?;
+        let axis_count = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let region_count = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(VariationRegionList {
             axis_count,
             region_count,
@@ -191,7 +242,7 @@ pub struct VariationRegionList<'a> {
 }
 
 impl<'a> VariationRegionList<'a> {
-    pub fn iter_variation_regions(&self) -> VariationRegionIter<'a> {
+    pub const fn iter_variation_regions(&self) -> VariationRegionIter<'a> {
         VariationRegionIter::new(self.data, self.region_count, self.axis_count)
     }
 }
@@ -203,24 +254,31 @@ pub struct VariationRegionIter<'a> {
 }
 
 impl<'a> VariationRegionIter<'a> {
-    pub(crate) fn new(bytes: &'a [u8], region_count: u16, axis_count: u16) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8], region_count: u16, axis_count: u16) -> Self {
         Self {
             stream: Stream::new(bytes),
             region_count,
             axis_count,
         }
     }
+
+    pub(crate) const fn next(&mut self) -> Option<VariationRegion<'a>> {
+        if self.region_count == 0 {
+            return None;
+        }
+        self.region_count -= 1;
+        let region_axes = match self.stream.parse_slice(self.axis_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
+        Some(VariationRegion { region_axes })
+    }
 }
 
 impl<'a> Iterator for VariationRegionIter<'a> {
     type Item = VariationRegion<'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.region_count == 0 {
-            return None;
-        }
-        self.region_count -= 1;
-        let region_axes = self.stream.parse_slice(self.axis_count as usize)?;
-        Some(VariationRegion { region_axes })
+        self.next()
     }
 }
 
@@ -248,20 +306,32 @@ pub(crate) struct ClassDefinitionParser<'a, C: Copy> {
 }
 
 impl<'a, C: Copy> ClassDefinitionParser<'a, C> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
             _pd: PhantomData,
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<ClassDefinitionTable<'a, C>> {
-        let format = self.stream.parse_u16()?;
+    pub(crate) const fn parse(&mut self) -> Option<ClassDefinitionTable<'a, C>> {
+        let format = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         match format {
             1 => {
-                let start_glyph_id = self.stream.parse_u16()?;
-                let glyph_count = self.stream.parse_u16()?;
-                let class_values = self.stream.parse_slice(glyph_count as usize)?;
+                let start_glyph_id = match self.stream.parse_u16() {
+                    Some(v) => v,
+                    _ => return None,
+                };
+                let glyph_count = match self.stream.parse_u16() {
+                    Some(v) => v,
+                    _ => return None,
+                };
+                let class_values = match self.stream.parse_slice(glyph_count as usize) {
+                    Some(v) => v,
+                    _ => return None,
+                };
                 Some(ClassDefinitionTable::ClassDefinitionFormat1(
                     ClassDefFormat1 {
                         format,
@@ -272,8 +342,15 @@ impl<'a, C: Copy> ClassDefinitionParser<'a, C> {
                 ))
             }
             2 => {
-                let class_range_count = self.stream.parse_u16()?;
-                let class_range_records = self.stream.parse_slice(class_range_count as usize)?;
+                let class_range_count = match self.stream.parse_u16() {
+                    Some(v) => v,
+                    _ => return None,
+                };
+                let class_range_records = match self.stream.parse_slice(class_range_count as usize)
+                {
+                    Some(v) => v,
+                    _ => return None,
+                };
                 Some(ClassDefinitionTable::ClassDefinitionFormat2(
                     ClassDefFormat2 {
                         format,
@@ -333,18 +410,27 @@ pub(crate) struct CoverageParser<'a> {
 }
 
 impl<'a> CoverageParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<CoverageTable<'a>> {
-        let format = self.stream.parse_u16()?;
+    pub(crate) const fn parse(&mut self) -> Option<CoverageTable<'a>> {
+        let format = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         match format {
             1 => {
-                let glyph_count = self.stream.parse_u16()?;
-                let glyph_array = self.stream.parse_slice(glyph_count as usize)?;
+                let glyph_count = match self.stream.parse_u16() {
+                    Some(v) => v,
+                    _ => return None,
+                };
+                let glyph_array = match self.stream.parse_slice(glyph_count as usize) {
+                    Some(v) => v,
+                    _ => return None,
+                };
                 Some(CoverageTable::CoverageFormat1(CoverageFormat1 {
                     format,
                     glyph_count,
@@ -352,8 +438,14 @@ impl<'a> CoverageParser<'a> {
                 }))
             }
             2 => {
-                let range_count = self.stream.parse_u16()?;
-                let range_records = self.stream.parse_slice(range_count as usize)?;
+                let range_count = match self.stream.parse_u16() {
+                    Some(v) => v,
+                    _ => return None,
+                };
+                let range_records = match self.stream.parse_slice(range_count as usize) {
+                    Some(v) => v,
+                    _ => return None,
+                };
                 Some(CoverageTable::CoverageFormat2(CoverageFormat2 {
                     format,
                     range_count,
@@ -441,15 +533,21 @@ pub(crate) struct ScriptListParser<'a> {
 }
 
 impl<'a> ScriptListParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<ScriptList<'a>> {
-        let script_count = self.stream.parse_u16()?;
-        let script_records = self.stream.parse_slice(script_count as usize)?;
+    pub(crate) const fn parse(&mut self) -> Option<ScriptList<'a>> {
+        let script_count = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let script_records = match self.stream.parse_slice(script_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(ScriptList {
             script_count,
             script_records,
@@ -480,15 +578,21 @@ pub(crate) struct FeatureListParser<'a> {
 }
 
 impl<'a> FeatureListParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<FeatureList<'a>> {
-        let feature_count = self.stream.parse_u16()?;
-        let feature_records = self.stream.parse_slice(feature_count as usize)?;
+    pub(crate) const fn parse(&mut self) -> Option<FeatureList<'a>> {
+        let feature_count = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let feature_records = match self.stream.parse_slice(feature_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(FeatureList {
             feature_count,
             feature_records,
@@ -510,15 +614,21 @@ pub(crate) struct LookupListParser<'a> {
 }
 
 impl<'a> LookupListParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<LookupList<'a>> {
-        let lookup_count = self.stream.parse_u16()?;
-        let lookup_offsets = self.stream.parse_slice(lookup_count as usize)?;
+    pub(crate) const fn parse(&mut self) -> Option<LookupList<'a>> {
+        let lookup_count = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let lookup_offsets = match self.stream.parse_slice(lookup_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(LookupList {
             lookup_count,
             lookup_offsets,
@@ -553,19 +663,32 @@ pub(crate) struct FeatureVariationsParser<'a> {
 }
 
 impl<'a> FeatureVariationsParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<FeatureVariations<'a>> {
-        let major_version = self.stream.parse_u16()?;
-        let minor_version = self.stream.parse_u16()?;
-        let feature_variation_record_count = self.stream.parse_u32()?;
-        let feature_variation_records = self
+    pub(crate) const fn parse(&mut self) -> Option<FeatureVariations<'a>> {
+        let major_version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let minor_version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let feature_variation_record_count = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let feature_variation_records = match self
             .stream
-            .parse_slice(feature_variation_record_count as usize)?;
+            .parse_slice(feature_variation_record_count as usize)
+        {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(FeatureVariations {
             major_version,
             minor_version,

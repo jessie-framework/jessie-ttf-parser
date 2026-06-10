@@ -6,6 +6,7 @@ use crate::{
     endian::U16BE,
     parser::{Parser, TableRecord},
     stream::Stream,
+    util::{slice_range, slice_rest},
 };
 
 /// The GDEF table begins with a header that starts with a version number. Three versions are defined. Version 1.0 contains offsets to glyph class definition, attachment point list, ligature caret list and mark attachment class definition tables. Version 1.2 also includes an offset to a mark glyph sets table. Version 1.3 also includes an offset to an item variation store table.
@@ -96,26 +97,31 @@ pub struct GlyphClassDef(U16BE);
 
 impl GlyphClassDef {
     /// Base glyph (single character, spacing glyph)
-    pub fn is_base_glyph(self) -> bool {
+    #[inline]
+    pub const fn is_base_glyph(self) -> bool {
         self.0.into_u16() == 1
     }
 
     /// Ligature glyph (multiple character, spacing glyph)
-    pub fn is_ligature_glyph(self) -> bool {
+    #[inline]
+    pub const fn is_ligature_glyph(self) -> bool {
         self.0.into_u16() == 2
     }
 
     /// Mark glyph (non-spacing combining glyph)
-    pub fn is_mark_glyph(self) -> bool {
+    #[inline]
+    pub const fn is_mark_glyph(self) -> bool {
         self.0.into_u16() == 3
     }
 
     /// Component glyph (part of single character, spacing glyph)
-    pub fn is_component_glyph(self) -> bool {
+    #[inline]
+    pub const fn is_component_glyph(self) -> bool {
         self.0.into_u16() == 4
     }
 
-    pub fn into_u16(self) -> u16 {
+    #[inline]
+    pub const fn into_u16(self) -> u16 {
         self.0.into_u16()
     }
 }
@@ -136,10 +142,19 @@ pub struct AttachList<'a> {
 }
 
 impl<'a> AttachList<'a> {
-    pub fn parse_attach_point_offset(&self, input: AttachPointOffset) -> Option<AttachPoint<'a>> {
-        let mut stream = Stream::new(&self.data[input.0.into_u16() as usize..]);
-        let point_count = stream.parse_u16()?;
-        let point_indices = stream.parse_slice(point_count as usize)?;
+    pub const fn parse_attach_point_offset(
+        &self,
+        input: AttachPointOffset,
+    ) -> Option<AttachPoint<'a>> {
+        let mut stream = Stream::new(slice_rest(self.data, input.0.into_u16() as usize));
+        let point_count = match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let point_indices = match stream.parse_slice(point_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(AttachPoint {
             point_count,
             point_indices,
@@ -174,11 +189,17 @@ pub struct LigCaretList<'a> {
 }
 
 impl<'a> LigCaretList<'a> {
-    pub fn parse_lig_glyph_offset(&self, input: LigGlyphOffset) -> Option<LigGlyph<'a>> {
-        let data = &self.data[input.0.into_u16() as usize..];
+    pub const fn parse_lig_glyph_offset(&self, input: LigGlyphOffset) -> Option<LigGlyph<'a>> {
+        let data = slice_rest(self.data, input.0.into_u16() as usize);
         let mut stream = Stream::new(data);
-        let caret_count = stream.parse_u16()?;
-        let caret_value_offsets = stream.parse_slice(caret_count as usize)?;
+        let caret_count = match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let caret_value_offsets = match stream.parse_slice(caret_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(LigGlyph {
             caret_count,
             caret_value_offsets,
@@ -200,27 +221,42 @@ pub struct LigGlyph<'a> {
 }
 
 impl<'a> LigGlyph<'a> {
-    pub fn parse_caret_value_offset(&self, input: CaretValueOffset) -> Option<CaretValue> {
-        let mut stream = Stream::new(&self.data[input.0.into_u16() as usize..]);
-        let format = stream.parse_u16()?;
+    pub const fn parse_caret_value_offset(&self, input: CaretValueOffset) -> Option<CaretValue> {
+        let mut stream = Stream::new(slice_rest(self.data, input.0.into_u16() as usize));
+        let format = match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         match format {
             1 => {
-                let coordinate = stream.parse_i16()?;
+                let coordinate = match stream.parse_i16() {
+                    Some(v) => v,
+                    _ => return None,
+                };
                 Some(CaretValue::CaretValueFormat1(CaretValueFormat1 {
                     format,
                     coordinate,
                 }))
             }
             2 => {
-                let caret_value_point_index = stream.parse_u16()?;
+                let caret_value_point_index = match stream.parse_u16() {
+                    Some(v) => v,
+                    _ => return None,
+                };
                 Some(CaretValue::CaretValueFormat2(CaretValueFormat2 {
                     format,
                     caret_value_point_index,
                 }))
             }
             3 => {
-                let coordinate = stream.parse_i16()?;
-                let device_offset = stream.parse_u16()?;
+                let coordinate = match stream.parse_i16() {
+                    Some(v) => v,
+                    _ => return None,
+                };
+                let device_offset = match stream.parse_u16() {
+                    Some(v) => v,
+                    _ => return None,
+                };
                 Some(CaretValue::CaretValueFormat3(CaretValueFormat3 {
                     format,
                     coordinate,
@@ -277,11 +313,11 @@ pub struct MarkGlyphSetsDef<'a> {
 }
 
 impl<'a> MarkGlyphSetsDef<'a> {
-    pub fn parse_mark_glyph_set_coverage_offset(
+    pub const fn parse_mark_glyph_set_coverage_offset(
         &self,
         input: MarkGlyphSetCoverageOffset,
     ) -> Option<MarkGlyphSet<'a>> {
-        let mut parser = CoverageParser::new(&self.data[input.0.into_u16() as usize..]);
+        let mut parser = CoverageParser::new(slice_rest(self.data, input.0.into_u16() as usize));
         parser.parse()
     }
 }
@@ -297,38 +333,65 @@ pub(crate) struct GdefParser<'a> {
 }
 
 impl<'a> GdefParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<GdefTable<'a>> {
-        let major_version = self.stream.parse_u16()?;
-        let minor_version = self.stream.parse_u16()?;
+    pub(crate) const fn parse(&mut self) -> Option<GdefTable<'a>> {
+        let major_version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let minor_version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         match (major_version, minor_version) {
             (1, 0) => Some(GdefTable::GdefVersion1_0(
-                self.parse_gdef_version_1_0(major_version, minor_version)?,
+                match self.parse_gdef_version_1_0(major_version, minor_version) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             (1, 2) => Some(GdefTable::GdefVersion1_2(
-                self.parse_gdef_version_1_2(major_version, minor_version)?,
+                match self.parse_gdef_version_1_2(major_version, minor_version) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             (1, 3) => Some(GdefTable::GdefVersion1_3(
-                self.parse_gdef_version_1_3(major_version, minor_version)?,
+                match self.parse_gdef_version_1_3(major_version, minor_version) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             _ => None,
         }
     }
 
-    pub(crate) fn parse_gdef_version_1_0(
+    pub(crate) const fn parse_gdef_version_1_0(
         &mut self,
         major_version: u16,
         minor_version: u16,
     ) -> Option<GdefVersion1_0<'a>> {
-        let glyph_class_def_offset = self.stream.parse_u16()?;
-        let attach_list_offset = self.stream.parse_u16()?;
-        let lig_caret_list_offset = self.stream.parse_u16()?;
-        let mark_attach_class_def_offset = self.stream.parse_u16()?;
+        let glyph_class_def_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let attach_list_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let lig_caret_list_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let mark_attach_class_def_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         let glyph_class_def_table = self.parse_glyph_class_def_table(glyph_class_def_offset);
         let attach_list = self.parse_attach_list(attach_list_offset);
         let lig_caret_list = self.parse_lig_caret_list(lig_caret_list_offset);
@@ -347,16 +410,31 @@ impl<'a> GdefParser<'a> {
             mark_attach_class_def_table,
         })
     }
-    pub(crate) fn parse_gdef_version_1_2(
+    pub(crate) const fn parse_gdef_version_1_2(
         &mut self,
         major_version: u16,
         minor_version: u16,
     ) -> Option<GdefVersion1_2<'a>> {
-        let glyph_class_def_offset = self.stream.parse_u16()?;
-        let attach_list_offset = self.stream.parse_u16()?;
-        let lig_caret_list_offset = self.stream.parse_u16()?;
-        let mark_attach_class_def_offset = self.stream.parse_u16()?;
-        let mark_glyph_sets_def_offset = self.stream.parse_u16()?;
+        let glyph_class_def_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let attach_list_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let lig_caret_list_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let mark_attach_class_def_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let mark_glyph_sets_def_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         let glyph_class_def_table = self.parse_glyph_class_def_table(glyph_class_def_offset);
         let attach_list = self.parse_attach_list(attach_list_offset);
         let lig_caret_list = self.parse_lig_caret_list(lig_caret_list_offset);
@@ -379,17 +457,35 @@ impl<'a> GdefParser<'a> {
             mark_glyph_sets_def_table,
         })
     }
-    pub(crate) fn parse_gdef_version_1_3(
+    pub(crate) const fn parse_gdef_version_1_3(
         &mut self,
         major_version: u16,
         minor_version: u16,
     ) -> Option<GdefVersion1_3<'a>> {
-        let glyph_class_def_offset = self.stream.parse_u16()?;
-        let attach_list_offset = self.stream.parse_u16()?;
-        let lig_caret_list_offset = self.stream.parse_u16()?;
-        let mark_attach_class_def_offset = self.stream.parse_u16()?;
-        let mark_glyph_sets_def_offset = self.stream.parse_u16()?;
-        let item_var_store_offset = self.stream.parse_u32()?;
+        let glyph_class_def_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let attach_list_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let lig_caret_list_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let mark_attach_class_def_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let mark_glyph_sets_def_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let item_var_store_offset = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
         let glyph_class_def_table = self.parse_glyph_class_def_table(glyph_class_def_offset);
         let attach_list = self.parse_attach_list(attach_list_offset);
         let lig_caret_list = self.parse_lig_caret_list(lig_caret_list_offset);
@@ -416,26 +512,35 @@ impl<'a> GdefParser<'a> {
         })
     }
 
-    pub(crate) fn parse_glyph_class_def_table(
+    pub(crate) const fn parse_glyph_class_def_table(
         &mut self,
         offset: u16,
     ) -> Option<GlyphClassDefinitionTable<'a>> {
         if offset == 0 {
             return None;
         }
-        let mut parser = ClassDefinitionParser::new(&self.stream.bytes[offset as usize..]);
+        let mut parser = ClassDefinitionParser::new(slice_rest(self.stream.bytes, offset as usize));
         parser.parse()
     }
 
-    pub(crate) fn parse_attach_list(&mut self, offset: u16) -> Option<AttachList<'a>> {
+    pub(crate) const fn parse_attach_list(&mut self, offset: u16) -> Option<AttachList<'a>> {
         if offset == 0 {
             return None;
         }
-        let data = &self.stream.bytes[offset as usize..];
+        let data = slice_rest(self.stream.bytes, offset as usize);
         let mut stream = Stream::new(data);
-        let coverage_offset = stream.parse_u16()?;
-        let glyph_count = stream.parse_u16()?;
-        let attach_point_offsets = stream.parse_slice(glyph_count as usize)?;
+        let coverage_offset = match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let glyph_count = match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let attach_point_offsets = match stream.parse_slice(glyph_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(AttachList {
             coverage_offset,
             glyph_count,
@@ -444,17 +549,29 @@ impl<'a> GdefParser<'a> {
         })
     }
 
-    pub(crate) fn parse_lig_caret_list(&mut self, offset: u16) -> Option<LigCaretList<'a>> {
+    pub(crate) const fn parse_lig_caret_list(&mut self, offset: u16) -> Option<LigCaretList<'a>> {
         if offset == 0 {
             return None;
         }
-        let data = &self.stream.bytes[offset as usize..];
+        let data = slice_rest(self.stream.bytes, offset as usize);
         let mut stream = Stream::new(data);
-        let coverage_offset = stream.parse_u16()?;
-        let lig_glyph_count = stream.parse_u16()?;
-        let lig_glyph_offsets = stream.parse_slice(lig_glyph_count as usize)?;
-        let mut coverage_parser = CoverageParser::new(&data[coverage_offset as usize..]);
-        let coverage = coverage_parser.parse()?;
+        let coverage_offset = match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let lig_glyph_count = match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let lig_glyph_offsets = match stream.parse_slice(lig_glyph_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
+        let mut coverage_parser = CoverageParser::new(slice_rest(data, coverage_offset as usize));
+        let coverage = match coverage_parser.parse() {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(LigCaretList {
             coverage_offset,
             lig_glyph_count,
@@ -464,29 +581,38 @@ impl<'a> GdefParser<'a> {
         })
     }
 
-    pub(crate) fn parse_mark_attach_class_def_table(
+    pub(crate) const fn parse_mark_attach_class_def_table(
         &mut self,
         offset: u16,
     ) -> Option<MarkAttachmentClassDefinitionTable<'a>> {
         if offset == 0 {
             return None;
         }
-        let mut parser = ClassDefinitionParser::new(&self.stream.bytes[offset as usize..]);
+        let mut parser = ClassDefinitionParser::new(slice_rest(self.stream.bytes, offset as usize));
         parser.parse()
     }
 
-    pub(crate) fn parse_mark_glyph_sets_def_table(
+    pub(crate) const fn parse_mark_glyph_sets_def_table(
         &mut self,
         offset: u16,
     ) -> Option<MarkGlyphSetsDef<'a>> {
         if offset == 0 {
             return None;
         }
-        let data = &self.stream.bytes[offset as usize..];
+        let data = slice_rest(self.stream.bytes, offset as usize);
         let mut stream = Stream::new(data);
-        let format = stream.parse_u16()?;
-        let mark_glyph_set_count = stream.parse_u16()?;
-        let coverage_offsets = stream.parse_slice(mark_glyph_set_count as usize)?;
+        let format = match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let mark_glyph_set_count = match stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let coverage_offsets = match stream.parse_slice(mark_glyph_set_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(MarkGlyphSetsDef {
             format,
             mark_glyph_set_count,
@@ -495,14 +621,15 @@ impl<'a> GdefParser<'a> {
         })
     }
 
-    pub(crate) fn parse_item_var_store_table(
+    pub(crate) const fn parse_item_var_store_table(
         &mut self,
         offset: u32,
     ) -> Option<ItemVariationStore<'a>> {
         if offset == 0 {
             return None;
         }
-        let mut parser = ItemVariationStoreParser::new(&self.stream.bytes[offset as usize..]);
+        let mut parser =
+            ItemVariationStoreParser::new(slice_rest(self.stream.bytes, offset as usize));
         parser.parse()
     }
 }
@@ -510,8 +637,11 @@ impl<'a> GdefParser<'a> {
 impl<'a> Parser<'a> {
     pub fn parse_gdef(&self, input: TableRecord) -> Option<GdefTable<'a>> {
         if input.table_tag.is_gdef() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = GdefParser::new(bytes);
             return parser.parse();
         }

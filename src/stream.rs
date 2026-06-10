@@ -1,4 +1,4 @@
-use crate::{f2dot14::F2Dot14, parser::Tag};
+use crate::{f2dot14::F2Dot14, tag::Tag};
 
 pub(crate) struct Stream<'a> {
     pub(crate) bytes: &'a [u8],
@@ -6,74 +6,98 @@ pub(crate) struct Stream<'a> {
 }
 
 impl<'a> Stream<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, idx: 0 }
     }
 
-    pub(crate) fn parse_tag(&mut self) -> Option<Tag> {
+    #[inline]
+    pub(crate) const fn parse_tag(&mut self) -> Option<Tag> {
         self.idx += 4;
-        let bytes = self.bytes.get(self.idx - 4..self.idx);
-        if let Some(v) = bytes {
-            let bytes: [u8; 4] = v.try_into().ok()?;
-            return Some(Tag(bytes));
+        if self.idx < self.bytes.len() {
+            let data: [u8; 4] =
+                unsafe { core::ptr::read(&raw const self.bytes[self.idx - 4] as *const _) };
+            return Some(Tag(data));
         }
         None
     }
 
-    pub(crate) fn parse_u8(&mut self) -> Option<u8> {
+    #[inline]
+    pub(crate) const fn parse_u8(&mut self) -> Option<u8> {
         self.idx += 1;
-        self.bytes.get(self.idx - 1).copied()
+        if self.idx < self.bytes.len() {
+            return Some(self.bytes[self.idx - 1]);
+        }
+        None
     }
 
-    pub(crate) fn parse_i8(&mut self) -> Option<i8> {
+    #[inline]
+    pub(crate) const fn parse_i8(&mut self) -> Option<i8> {
         self.idx += 1;
-        self.bytes
-            .get(self.idx - 1)
-            .copied()
-            .map(|v| i8::from_ne_bytes([v]))
+        if self.idx < self.bytes.len() {
+            return Some(self.bytes[self.idx - 1] as i8);
+        }
+        None
     }
 
-    pub(crate) fn parse_u16(&mut self) -> Option<u16> {
+    pub(crate) const fn parse_u16(&mut self) -> Option<u16> {
         self.idx += 2;
-        self.bytes
-            .get(self.idx - 2..self.idx)
-            .map(|v| u16::from_be_bytes(v.try_into().unwrap()))
+        if self.idx < self.bytes.len() {
+            let data: [u8; 2] =
+                unsafe { core::ptr::read(&raw const self.bytes[self.idx - 2] as *const _) };
+            return Some(u16::from_be_bytes(data));
+        }
+        None
     }
 
-    pub(crate) fn parse_i16(&mut self) -> Option<i16> {
+    pub(crate) const fn parse_i16(&mut self) -> Option<i16> {
         self.idx += 2;
-        self.bytes
-            .get(self.idx - 2..self.idx)
-            .map(|v| i16::from_be_bytes(v.try_into().unwrap()))
+        if self.idx < self.bytes.len() {
+            let data: [u8; 2] =
+                unsafe { core::ptr::read(&raw const self.bytes[self.idx - 2] as *const _) };
+            return Some(i16::from_be_bytes(data));
+        }
+        None
     }
 
-    pub(crate) fn parse_f2_dot_14(&mut self) -> Option<F2Dot14> {
-        self.parse_u16().map(F2Dot14::from_u16)
+    pub(crate) const fn parse_f2_dot_14(&mut self) -> Option<F2Dot14> {
+        match self.parse_u16() {
+            Some(v) => Some(F2Dot14::from_u16(v)),
+            None => None,
+        }
     }
 
-    pub(crate) fn parse_i64(&mut self) -> Option<i64> {
+    pub(crate) const fn parse_i64(&mut self) -> Option<i64> {
         self.idx += 8;
-        self.bytes
-            .get(self.idx - 8..self.idx)
-            .map(|v| i64::from_be_bytes(v.try_into().unwrap()))
+        if self.idx < self.bytes.len() {
+            let data: [u8; 8] =
+                unsafe { core::ptr::read(&raw const self.bytes[self.idx - 8] as *const _) };
+            return Some(i64::from_be_bytes(data));
+        }
+        None
     }
 
-    pub(crate) fn parse_u32(&mut self) -> Option<u32> {
+    pub(crate) const fn parse_u32(&mut self) -> Option<u32> {
         self.idx += 4;
-        self.bytes
-            .get(self.idx - 4..self.idx)
-            .map(|v| u32::from_be_bytes(v.try_into().unwrap()))
+        if self.idx < self.bytes.len() {
+            let data: [u8; 4] =
+                unsafe { core::ptr::read(&raw const self.bytes[self.idx - 4] as *const _) };
+            return Some(u32::from_be_bytes(data));
+        }
+        None
     }
 
-    pub(crate) fn parse_i32(&mut self) -> Option<i32> {
+    pub(crate) const fn parse_i32(&mut self) -> Option<i32> {
         self.idx += 4;
-        self.bytes
-            .get(self.idx - 4..self.idx)
-            .map(|v| i32::from_be_bytes(v.try_into().unwrap()))
+        if self.idx < self.bytes.len() {
+            let data: [u8; 4] =
+                unsafe { core::ptr::read(&raw const self.bytes[self.idx - 4] as *const _) };
+            return Some(i32::from_be_bytes(data));
+        }
+        None
     }
 
-    pub(crate) fn parse_slice<T>(&mut self, length: usize) -> Option<&'a [T]> {
-        let ptr = unsafe { self.bytes.as_ptr().add(self.idx) } as *const T;
+    pub(crate) const fn parse_slice<T>(&mut self, length: usize) -> Option<&'a [T]> {
+        let ptr = &raw const self.bytes[self.idx] as *const T;
         let out = unsafe { core::slice::from_raw_parts(ptr, length) };
         let size = size_of::<T>() * length;
         if self.idx + size <= self.bytes.len() {
@@ -84,7 +108,7 @@ impl<'a> Stream<'a> {
         }
     }
 
-    pub(crate) fn parse_utf8(&mut self, length: usize) -> Option<&'a str> {
+    pub(crate) const fn parse_utf8(&mut self, length: usize) -> Option<&'a str> {
         let ptr = unsafe { self.bytes.as_ptr().add(self.idx) };
         let out =
             unsafe { core::str::from_utf8_unchecked(core::slice::from_raw_parts(ptr, length)) };
@@ -96,7 +120,7 @@ impl<'a> Stream<'a> {
         }
     }
 
-    pub(crate) fn parse_slice_rest<T>(&mut self) -> &'a [T] {
+    pub(crate) const fn parse_slice_rest<T>(&mut self) -> &'a [T] {
         let ptr = &raw const self.bytes[self.idx] as *const T;
         let len = (self.bytes.len() - self.idx) / size_of::<T>();
         unsafe { core::slice::from_raw_parts(ptr, len) }

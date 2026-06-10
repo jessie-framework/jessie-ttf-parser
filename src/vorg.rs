@@ -1,7 +1,9 @@
 use crate::{
+    att,
     endian::{I16BE, U16BE},
     parser::{Parser, TableRecord},
     stream::Stream,
+    util::slice_range,
 };
 
 #[repr(C)]
@@ -36,20 +38,19 @@ pub(crate) struct VorgParser<'a> {
 }
 
 impl<'a> VorgParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<VorgTable<'a>> {
-        let major_version = self.stream.parse_u16()?;
-        let minor_version = self.stream.parse_u16()?;
-        let default_vert_origin_y = self.stream.parse_i16()?;
-        let num_vert_origin_y_metrics = self.stream.parse_u16()?;
-        let vert_origin_y_metrics = self
-            .stream
-            .parse_slice(num_vert_origin_y_metrics as usize)?;
+    pub(crate) const fn parse(&mut self) -> Option<VorgTable<'a>> {
+        let major_version = att!(self.stream.parse_u16());
+        let minor_version = att!(self.stream.parse_u16());
+        let default_vert_origin_y = att!(self.stream.parse_i16());
+        let num_vert_origin_y_metrics = att!(self.stream.parse_u16());
+        let vert_origin_y_metrics =
+            att!(self.stream.parse_slice(num_vert_origin_y_metrics as usize));
         Some(VorgTable {
             major_version,
             minor_version,
@@ -61,10 +62,13 @@ impl<'a> VorgParser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_vorg(&self, input: TableRecord) -> Option<VorgTable<'a>> {
+    pub const fn parse_vorg(&self, input: TableRecord) -> Option<VorgTable<'a>> {
         if input.table_tag.is_vorg() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = VorgParser::new(bytes);
             return parser.parse();
         }

@@ -1,4 +1,7 @@
-use crate::parser::{Parser, TableRecord};
+use crate::{
+    parser::{Parser, TableRecord},
+    util::slice_range,
+};
 
 /// The Control Value (CV) Program consists of a set of TrueType instructions that can be used to make font-wide changes in the Control Value Table. Any instruction is valid in the CV Program but since no glyph is associated with it, instructions intended to move points within a particular glyph outline have no effect in the CV Program.
 ///
@@ -9,10 +12,13 @@ pub struct PrepTable<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_prep(&self, input: TableRecord) -> Option<PrepTable<'a>> {
+    pub const fn parse_prep(&self, input: TableRecord) -> Option<PrepTable<'a>> {
         if input.table_tag.is_prep() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             return Some(PrepTable { data: bytes });
         }
         None

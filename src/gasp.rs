@@ -2,6 +2,7 @@ use crate::{
     endian::U16BE,
     parser::{Parser, TableRecord},
     stream::Stream,
+    util::slice_range,
 };
 
 /// This table contains information which describes the preferred rasterization techniques for the typeface when it is rendered on grayscale-capable devices. This table also has some use for monochrome devices, which may use the table to turn off hinting at very large or small sizes, to improve performance.
@@ -35,24 +36,24 @@ pub struct RangeGaspBehavior(U16BE);
 
 impl RangeGaspBehavior {
     /// Use gridfitting
-    pub fn gasp_gridfit(self) -> bool {
+    pub const fn gasp_gridfit(self) -> bool {
         self.0.into_u16() & 0x0001 != 0
     }
 
     /// Use grayscale rendering
-    pub fn gasp_dogray(self) -> bool {
+    pub const fn gasp_dogray(self) -> bool {
         self.0.into_u16() & 0x0002 != 0
     }
 
     /// Use gridfitting with ClearType symmetric smoothing
     /// Only supported in version 1
-    pub fn gasp_symmetric_gridfit(self) -> bool {
+    pub const fn gasp_symmetric_gridfit(self) -> bool {
         self.0.into_u16() & 0x0004 != 0
     }
 
     /// Use smoothing along multiple axes with ClearType®
     /// Only supported in version 1
-    pub fn gasp_symmetric_smoothing(self) -> bool {
+    pub const fn gasp_symmetric_smoothing(self) -> bool {
         self.0.into_u16() & 0x0008 != 0
     }
 }
@@ -62,16 +63,25 @@ pub(crate) struct GaspParser<'a> {
 }
 
 impl<'a> GaspParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<GaspTable<'a>> {
-        let version = self.stream.parse_u16()?;
-        let num_ranges = self.stream.parse_u16()?;
-        let gasp_ranges = self.stream.parse_slice(num_ranges as usize)?;
+    pub(crate) const fn parse(&mut self) -> Option<GaspTable<'a>> {
+        let version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let num_ranges = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let gasp_ranges = match self.stream.parse_slice(num_ranges as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(GaspTable {
             version,
             num_ranges,
@@ -81,10 +91,13 @@ impl<'a> GaspParser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_gasp(&self, input: TableRecord) -> Option<GaspTable<'a>> {
+    pub const fn parse_gasp(&self, input: TableRecord) -> Option<GaspTable<'a>> {
         if input.table_tag.is_gasp() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = GaspParser::new(bytes);
             return parser.parse();
         }

@@ -2,6 +2,7 @@ use crate::{
     endian::FWordBE,
     parser::{Parser, TableRecord},
     stream::Stream,
+    util::slice_range,
 };
 
 #[derive(Debug, Clone)]
@@ -17,23 +18,26 @@ pub(crate) struct CvtParser<'a> {
 }
 
 impl<'a> CvtParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<CvtTable<'a>> {
+    pub(crate) const fn parse(&mut self) -> Option<CvtTable<'a>> {
         let inner = self.stream.parse_slice_rest();
         Some(CvtTable(inner))
     }
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_cvt(&self, input: TableRecord) -> Option<CvtTable<'a>> {
+    pub const fn parse_cvt(&self, input: TableRecord) -> Option<CvtTable<'a>> {
         if input.table_tag.is_cvt() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = CvtParser::new(bytes);
             return parser.parse();
         }

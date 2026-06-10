@@ -13,12 +13,12 @@ pub struct U32BE(u32);
 
 impl U32BE {
     #[cfg(target_endian = "big")]
-    pub fn into_u32(self) -> u32 {
+    pub const fn into_u32(self) -> u32 {
         self.0
     }
 
     #[cfg(target_endian = "little")]
-    pub fn into_u32(self) -> u32 {
+    pub const fn into_u32(self) -> u32 {
         self.0.to_be()
     }
 }
@@ -41,12 +41,12 @@ pub struct U24BE(u16, u8);
 
 impl U24BE {
     #[cfg(target_endian = "big")]
-    pub fn into_u32(self) -> u32 {
+    pub const fn into_u32(self) -> u32 {
         (self.0 as u32) & (self.1 as u32 >> 16)
     }
 
     #[cfg(target_endian = "little")]
-    pub fn into_u32(self) -> u32 {
+    pub const fn into_u32(self) -> u32 {
         (self.1.to_be() as u32) & (self.0.to_be() as u32 >> 8)
     }
 }
@@ -69,12 +69,12 @@ pub struct U16BE(pub(crate) u16);
 
 impl U16BE {
     #[cfg(target_endian = "big")]
-    pub fn into_u16(self) -> u16 {
+    pub const fn into_u16(self) -> u16 {
         self.0
     }
 
     #[cfg(target_endian = "little")]
-    pub fn into_u16(self) -> u16 {
+    pub const fn into_u16(self) -> u16 {
         self.0.to_be()
     }
 }
@@ -96,12 +96,12 @@ pub struct I16BE(i16);
 
 impl I16BE {
     #[cfg(target_endian = "big")]
-    pub fn into_i16(self) -> i16 {
+    pub const fn into_i16(self) -> i16 {
         self.0
     }
 
     #[cfg(target_endian = "little")]
-    pub fn into_i16(self) -> i16 {
+    pub const fn into_i16(self) -> i16 {
         self.0.to_be()
     }
 }
@@ -122,7 +122,7 @@ pub struct UTF16BE<'a> {
 }
 
 impl<'a> UTF16BE<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self { bytes }
     }
 
@@ -156,7 +156,7 @@ impl<'a> Display for UTF16BE<'a> {
 pub struct F2Dot14BE(U16BE);
 
 impl F2Dot14BE {
-    pub fn into_f32(self) -> f32 {
+    pub const fn into_f32(self) -> f32 {
         F2Dot14::from_u16(self.0.into_u16()).into_f32()
     }
 }

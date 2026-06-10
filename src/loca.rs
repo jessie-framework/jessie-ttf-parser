@@ -4,6 +4,7 @@ use crate::{
     maxp::MaxpTable,
     parser::{Parser, TableRecord},
     stream::Stream,
+    util::{slice_get, slice_range},
 };
 
 #[derive(Debug, Clone)]
@@ -13,16 +14,28 @@ pub enum LocaTable<'a> {
 }
 
 impl<'a> LocaTable<'a> {
-    pub fn get_glyphid(&self, input: GlyphId) -> Option<LocaOffset> {
+    pub const fn get_glyphid(&self, input: GlyphId) -> Option<LocaOffset> {
         match self {
             LocaTable::ShortFormat(t) => {
-                let start = t.offsets.get(input.0 as usize)?.into_u16() as u32 * 2;
-                let end = t.offsets.get(input.0 as usize + 1)?.into_u16() as u32 * 2;
+                let start = match slice_get(t.offsets, input.0 as usize) {
+                    Some(v) => v.into_u16() as u32 * 2,
+                    _ => return None,
+                };
+                let end = match slice_get(t.offsets, input.0 as usize + 1) {
+                    Some(v) => v.into_u16() as u32 * 2,
+                    _ => return None,
+                };
                 Some(LocaOffset { start, end })
             }
             LocaTable::LongFormat(t) => {
-                let start = t.offsets.get(input.0 as usize)?.into_u32();
-                let end = t.offsets.get(input.0 as usize + 1)?.into_u32();
+                let start = match slice_get(t.offsets, input.0 as usize) {
+                    Some(v) => v.into_u32(),
+                    _ => return None,
+                };
+                let end = match slice_get(t.offsets, input.0 as usize + 1) {
+                    Some(v) => v.into_u32(),
+                    _ => return None,
+                };
                 Some(LocaOffset { start, end })
             }
         }
@@ -39,7 +52,7 @@ pub struct LocaOffset {
 }
 
 impl LocaOffset {
-    pub fn has_no_outline_or_instructions(&self) -> bool {
+    pub const fn has_no_outline_or_instructions(&self) -> bool {
         self.start == self.end
     }
 }
@@ -61,22 +74,32 @@ pub(crate) struct LocaParser<'a> {
 }
 
 impl<'a> LocaParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self, maxp: &MaxpTable, head: &HeadTable) -> Option<LocaTable<'a>> {
+    pub(crate) const fn parse(
+        &mut self,
+        maxp: &MaxpTable,
+        head: &HeadTable,
+    ) -> Option<LocaTable<'a>> {
         let format = head.index_to_loc_format;
         let num_glyphs = maxp.num_glyphs();
         match format {
             0 => {
-                let offsets = self.stream.parse_slice(num_glyphs as usize + 1)?;
+                let offsets = match self.stream.parse_slice(num_glyphs as usize + 1) {
+                    Some(v) => v,
+                    _ => return None,
+                };
                 Some(LocaTable::ShortFormat(LocaShortFormat { offsets }))
             }
             1 => {
-                let offsets = self.stream.parse_slice(num_glyphs as usize + 1)?;
+                let offsets = match self.stream.parse_slice(num_glyphs as usize + 1) {
+                    Some(v) => v,
+                    _ => return None,
+                };
                 Some(LocaTable::LongFormat(LocaLongFormat { offsets }))
             }
             _ => None,
@@ -85,15 +108,18 @@ impl<'a> LocaParser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_loca(
+    pub const fn parse_loca(
         &self,
         input: TableRecord,
         maxp: &MaxpTable,
         head: &HeadTable,
     ) -> Option<LocaTable<'a>> {
         if input.table_tag.is_loca() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = LocaParser::new(bytes);
             return parser.parse(maxp, head);
         }
