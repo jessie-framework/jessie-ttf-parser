@@ -13,7 +13,7 @@ impl<'a> Stream<'a> {
     #[inline]
     pub(crate) const fn parse_tag(&mut self) -> Option<Tag> {
         self.idx += 4;
-        if self.idx < self.bytes.len() {
+        if self.idx <= self.bytes.len() {
             let data: [u8; 4] =
                 unsafe { core::ptr::read(&raw const self.bytes[self.idx - 4] as *const _) };
             return Some(Tag(data));
@@ -24,7 +24,7 @@ impl<'a> Stream<'a> {
     #[inline]
     pub(crate) const fn parse_u8(&mut self) -> Option<u8> {
         self.idx += 1;
-        if self.idx < self.bytes.len() {
+        if self.idx <= self.bytes.len() {
             return Some(self.bytes[self.idx - 1]);
         }
         None
@@ -33,7 +33,7 @@ impl<'a> Stream<'a> {
     #[inline]
     pub(crate) const fn parse_i8(&mut self) -> Option<i8> {
         self.idx += 1;
-        if self.idx < self.bytes.len() {
+        if self.idx <= self.bytes.len() {
             return Some(self.bytes[self.idx - 1] as i8);
         }
         None
@@ -41,7 +41,7 @@ impl<'a> Stream<'a> {
 
     pub(crate) const fn parse_u16(&mut self) -> Option<u16> {
         self.idx += 2;
-        if self.idx < self.bytes.len() {
+        if self.idx <= self.bytes.len() {
             let data: [u8; 2] =
                 unsafe { core::ptr::read(&raw const self.bytes[self.idx - 2] as *const _) };
             return Some(u16::from_be_bytes(data));
@@ -51,7 +51,7 @@ impl<'a> Stream<'a> {
 
     pub(crate) const fn parse_i16(&mut self) -> Option<i16> {
         self.idx += 2;
-        if self.idx < self.bytes.len() {
+        if self.idx <= self.bytes.len() {
             let data: [u8; 2] =
                 unsafe { core::ptr::read(&raw const self.bytes[self.idx - 2] as *const _) };
             return Some(i16::from_be_bytes(data));
@@ -68,7 +68,7 @@ impl<'a> Stream<'a> {
 
     pub(crate) const fn parse_i64(&mut self) -> Option<i64> {
         self.idx += 8;
-        if self.idx < self.bytes.len() {
+        if self.idx <= self.bytes.len() {
             let data: [u8; 8] =
                 unsafe { core::ptr::read(&raw const self.bytes[self.idx - 8] as *const _) };
             return Some(i64::from_be_bytes(data));
@@ -78,7 +78,7 @@ impl<'a> Stream<'a> {
 
     pub(crate) const fn parse_u32(&mut self) -> Option<u32> {
         self.idx += 4;
-        if self.idx < self.bytes.len() {
+        if self.idx <= self.bytes.len() {
             let data: [u8; 4] =
                 unsafe { core::ptr::read(&raw const self.bytes[self.idx - 4] as *const _) };
             return Some(u32::from_be_bytes(data));
@@ -88,7 +88,7 @@ impl<'a> Stream<'a> {
 
     pub(crate) const fn parse_i32(&mut self) -> Option<i32> {
         self.idx += 4;
-        if self.idx < self.bytes.len() {
+        if self.idx <= self.bytes.len() {
             let data: [u8; 4] =
                 unsafe { core::ptr::read(&raw const self.bytes[self.idx - 4] as *const _) };
             return Some(i32::from_be_bytes(data));
