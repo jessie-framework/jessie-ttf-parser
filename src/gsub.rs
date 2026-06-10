@@ -5,6 +5,7 @@ use crate::{
     },
     parser::{Parser, TableRecord},
     stream::Stream,
+    util::{slice_range, slice_rest},
 };
 
 /// The GPOS table begins with a header that contains a version number for the table. Two versions are defined. Version 1.0 contains offsets to three tables: ScriptList, FeatureList, and LookupList. Version 1.1 also includes an offset to a FeatureVariations table. For descriptions of these tables, see the chapter, OpenType Layout Common Table Formats . Example 1 at the end of this chapter shows a GPOS Header version 1.0 table definition.
@@ -58,24 +59,56 @@ pub(crate) struct GsubParser<'a> {
 }
 
 impl<'a> GsubParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<GsubTable<'a>> {
-        let major_version = self.stream.parse_u16()?;
-        let minor_version = self.stream.parse_u16()?;
-        let script_list_offset = self.stream.parse_u16()?;
-        let feature_list_offset = self.stream.parse_u16()?;
-        let lookup_list_offset = self.stream.parse_u16()?;
+    pub(crate) const fn parse(&mut self) -> Option<GsubTable<'a>> {
+        let major_version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let minor_version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let script_list_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let feature_list_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let lookup_list_offset = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         let script_list_table =
-            ScriptListParser::new(&self.stream.bytes[script_list_offset as usize..]).parse()?;
-        let feature_list_table =
-            FeatureListParser::new(&self.stream.bytes[feature_list_offset as usize..]).parse()?;
+            match ScriptListParser::new(slice_rest(self.stream.bytes, script_list_offset as usize))
+                .parse()
+            {
+                Some(v) => v,
+                _ => return None,
+            };
+        let feature_list_table = match FeatureListParser::new(slice_rest(
+            self.stream.bytes,
+            feature_list_offset as usize,
+        ))
+        .parse()
+        {
+            Some(v) => v,
+            _ => return None,
+        };
         let lookup_list_table =
-            LookupListParser::new(&self.stream.bytes[lookup_list_offset as usize..]).parse()?;
+            match LookupListParser::new(slice_rest(self.stream.bytes, lookup_list_offset as usize))
+                .parse()
+            {
+                Some(v) => v,
+                _ => return None,
+            };
         match (major_version, minor_version) {
             (1, 0) => Some(GsubTable::GsubVersion1_0(GsubVersion1_0 {
                 major_version,
@@ -88,13 +121,17 @@ impl<'a> GsubParser<'a> {
                 lookup_list_table,
             })),
             (1, 1) => {
-                let feature_variations_offset = self.stream.parse_u32()?;
+                let feature_variations_offset = match self.stream.parse_u32() {
+                    Some(v) => v,
+                    _ => return None,
+                };
                 let feature_variations_table = if feature_variations_offset == 0 {
                     None
                 } else {
-                    FeatureVariationsParser::new(
-                        &self.stream.bytes[feature_variations_offset as usize..],
-                    )
+                    FeatureVariationsParser::new(slice_rest(
+                        self.stream.bytes,
+                        feature_variations_offset as usize,
+                    ))
                     .parse()
                 };
                 Some(GsubTable::GsubVersion1_1(GsubVersion1_1 {
@@ -116,10 +153,13 @@ impl<'a> GsubParser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_gsub(&self, input: TableRecord) -> Option<GsubTable<'a>> {
-        if input.table_tag.is_gpos() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+    pub const fn parse_gsub(&self, input: TableRecord) -> Option<GsubTable<'a>> {
+        if input.table_tag.is_gsub() {
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = GsubParser::new(bytes);
             return parser.parse();
         }

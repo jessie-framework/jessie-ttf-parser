@@ -5,6 +5,7 @@ use crate::{
     maxp::MaxpTable,
     parser::TableRecord,
     stream::Stream,
+    util::slice_range,
 };
 
 #[repr(C)]
@@ -26,19 +27,30 @@ pub(crate) struct HmtxParser<'a> {
 }
 
 impl<'a> HmtxParser<'a> {
-    pub fn new(bytes: &'a [u8]) -> Self {
+    pub const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self, hhea: &HheaTable, maxp: &MaxpTable) -> Option<HmtxHeader<'a>> {
+    pub(crate) const fn parse(
+        &mut self,
+        hhea: &HheaTable,
+        maxp: &MaxpTable,
+    ) -> Option<HmtxHeader<'a>> {
         let number_of_h_metrics = hhea.number_of_h_metrics;
         let num_glyphs = maxp.num_glyphs();
-        let h_metrics = self.stream.parse_slice(number_of_h_metrics as usize)?;
-        let left_side_bearings = self
+        let h_metrics = match self.stream.parse_slice(number_of_h_metrics as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
+        let left_side_bearings = match self
             .stream
-            .parse_slice(num_glyphs as usize - number_of_h_metrics as usize)?;
+            .parse_slice(num_glyphs as usize - number_of_h_metrics as usize)
+        {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(HmtxHeader {
             h_metrics,
             left_side_bearings,
@@ -47,15 +59,18 @@ impl<'a> HmtxParser<'a> {
 }
 
 impl<'a> crate::parser::Parser<'a> {
-    pub fn parse_hmtx(
+    pub const fn parse_hmtx(
         &self,
         input: TableRecord,
         hhea: &HheaTable,
         maxp: &MaxpTable,
     ) -> Option<HmtxHeader<'a>> {
         if input.table_tag.is_hmtx() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = HmtxParser::new(bytes);
             return parser.parse(hhea, maxp);
         }

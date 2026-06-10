@@ -1,8 +1,11 @@
 use crate::{
+    att,
     common::{ItemVariationStore, ItemVariationStoreParser},
     endian::U16BE,
-    parser::{Parser, TableRecord, Tag},
+    parser::{Parser, TableRecord},
     stream::Stream,
+    tag::Tag,
+    util::{slice_range, slice_rest},
 };
 
 /// The BASE table begins with a header that starts with a version number. Two versions are defined. Version 1.0 contains offsets to horizontal and vertical Axis tables (HorizAxis and VertAxis). Version 1.1 also includes an offset to an ItemVariationStore table.
@@ -181,35 +184,36 @@ pub(crate) struct BaseParser<'a> {
 }
 
 impl<'a> BaseParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    #[inline(always)]
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<BaseTable<'a>> {
-        let major_version = self.stream.parse_u16()?;
-        let minor_version = self.stream.parse_u16()?;
-        let horiz_axis_offset = self.stream.parse_u16()?;
-        let vert_axis_offset = self.stream.parse_u16()?;
+    pub(crate) const fn parse(&mut self) -> Option<BaseTable<'a>> {
+        let major_version = att!(self.stream.parse_u16());
+        let minor_version = att!(self.stream.parse_u16());
+        let horiz_axis_offset = att!(self.stream.parse_u16());
+        let vert_axis_offset = att!(self.stream.parse_u16());
         match (major_version, minor_version) {
-            (1, 0) => Some(BaseTable::Version1_0(self.parse_base_version_1_0(
+            (1, 0) => Some(BaseTable::Version1_0(att!(self.parse_base_version_1_0(
                 major_version,
                 minor_version,
                 horiz_axis_offset,
                 vert_axis_offset,
-            )?)),
-            (1, 1) => Some(BaseTable::Version1_1(self.parse_base_version_1_1(
+            )))),
+            (1, 1) => Some(BaseTable::Version1_1(att!(self.parse_base_version_1_1(
                 major_version,
                 minor_version,
                 horiz_axis_offset,
                 vert_axis_offset,
-            )?)),
+            )))),
             _ => None,
         }
     }
 
-    pub(crate) fn parse_base_version_1_0(
+    pub(crate) const fn parse_base_version_1_0(
         &mut self,
         major_version: u16,
         minor_version: u16,
@@ -228,14 +232,14 @@ impl<'a> BaseParser<'a> {
         })
     }
 
-    pub(crate) fn parse_base_version_1_1(
+    pub(crate) const fn parse_base_version_1_1(
         &mut self,
         major_version: u16,
         minor_version: u16,
         horiz_axis_offset: u16,
         vert_axis_offset: u16,
     ) -> Option<BaseTableVersion1_1<'a>> {
-        let item_var_store_offset = self.stream.parse_u32()?;
+        let item_var_store_offset = att!(self.stream.parse_u32());
         let horiz_axis_table = self.parse_axis_table_from_offset(horiz_axis_offset);
         let vert_axis_table = self.parse_axis_table_from_offset(vert_axis_offset);
         let item_var_store = self.parse_item_var_store_from_offset(item_var_store_offset);
@@ -251,30 +255,35 @@ impl<'a> BaseParser<'a> {
         })
     }
 
-    pub(crate) fn parse_item_var_store_from_offset(
+    pub(crate) const fn parse_item_var_store_from_offset(
         &mut self,
         offset: u32,
     ) -> Option<ItemVariationStore<'a>> {
         if offset == 0 {
             return None;
         }
-        let mut parser = ItemVariationStoreParser::new(&self.stream.bytes[offset as usize..]);
+        let mut parser =
+            ItemVariationStoreParser::new(slice_rest(self.stream.bytes, offset as usize));
         parser.parse()
     }
 
-    pub(crate) fn parse_axis_table_from_offset(&mut self, offset: u16) -> Option<AxisTable<'a>> {
+    pub(crate) const fn parse_axis_table_from_offset(
+        &mut self,
+        offset: u16,
+    ) -> Option<AxisTable<'a>> {
         if offset == 0 {
             return None;
         }
-        let mut parser = Self::new(&self.stream.bytes[offset as usize..]);
+        let mut parser = Self::new(slice_rest(self.stream.bytes, offset as usize));
         parser.parse_axis_table()
     }
 
-    pub(crate) fn parse_axis_table(&mut self) -> Option<AxisTable<'a>> {
-        let base_tag_list_offset = self.stream.parse_u16()?;
-        let base_script_list_offset = self.stream.parse_u16()?;
-        let base_tag_list = self.parse_base_tag_list_from_offset(base_script_list_offset)?;
-        let base_script_list = self.parse_base_script_list_from_offset(base_script_list_offset)?;
+    pub(crate) const fn parse_axis_table(&mut self) -> Option<AxisTable<'a>> {
+        let base_tag_list_offset = att!(self.stream.parse_u16());
+        let base_script_list_offset = att!(self.stream.parse_u16());
+        let base_tag_list = att!(self.parse_base_tag_list_from_offset(base_script_list_offset));
+        let base_script_list =
+            att!(self.parse_base_script_list_from_offset(base_script_list_offset));
         Some(AxisTable {
             base_tag_list_offset,
             base_script_list_offset,
@@ -283,34 +292,34 @@ impl<'a> BaseParser<'a> {
         })
     }
 
-    pub(crate) fn parse_base_script_list_from_offset(
+    pub(crate) const fn parse_base_script_list_from_offset(
         &mut self,
         offset: u16,
     ) -> Option<BaseScriptList<'a>> {
-        let mut parser = Self::new(&self.stream.bytes[offset as usize..]);
+        let mut parser = Self::new(slice_rest(self.stream.bytes, offset as usize));
         parser.parse_base_script_list()
     }
 
-    pub(crate) fn parse_base_script_list(&mut self) -> Option<BaseScriptList<'a>> {
-        let base_script_count = self.stream.parse_u16()?;
-        let base_script_records = self.stream.parse_slice(base_script_count as usize)?;
+    pub(crate) const fn parse_base_script_list(&mut self) -> Option<BaseScriptList<'a>> {
+        let base_script_count = att!(self.stream.parse_u16());
+        let base_script_records = att!(self.stream.parse_slice(base_script_count as usize));
         Some(BaseScriptList {
             base_script_count,
             base_script_records,
         })
     }
 
-    pub(crate) fn parse_base_tag_list_from_offset(
+    pub(crate) const fn parse_base_tag_list_from_offset(
         &mut self,
         offset: u16,
     ) -> Option<BaseTagList<'a>> {
-        let mut parser = Self::new(&self.stream.bytes[offset as usize..]);
+        let mut parser = Self::new(slice_rest(self.stream.bytes, offset as usize));
         parser.parse_base_tag_list()
     }
 
-    pub(crate) fn parse_base_tag_list(&mut self) -> Option<BaseTagList<'a>> {
-        let base_tag_count = self.stream.parse_u16()?;
-        let baseline_tags = self.stream.parse_slice(base_tag_count as usize)?;
+    pub(crate) const fn parse_base_tag_list(&mut self) -> Option<BaseTagList<'a>> {
+        let base_tag_count = att!(self.stream.parse_u16());
+        let baseline_tags = att!(self.stream.parse_slice(base_tag_count as usize));
         Some(BaseTagList {
             base_tag_count,
             baseline_tags,
@@ -319,10 +328,13 @@ impl<'a> BaseParser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_base(&self, input: TableRecord) -> Option<BaseTable<'a>> {
+    pub const fn parse_base(&self, input: TableRecord) -> Option<BaseTable<'a>> {
         if input.table_tag.is_base() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = BaseParser::new(bytes);
             return parser.parse();
         }

@@ -1,9 +1,11 @@
 use crate::{
+    att,
     endian::U16BE,
     fixed::Fixed,
     fword::FWord,
     parser::{Parser, TableRecord},
     stream::Stream,
+    util::slice_range,
 };
 
 #[derive(Debug, Clone)]
@@ -144,22 +146,22 @@ pub(crate) struct PostParser<'a> {
 }
 
 impl<'a> PostParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<PostTable<'a>> {
-        let version = self.stream.parse_u32()?;
-        let italic_angle = Fixed::from_u32(self.stream.parse_u32()?);
-        let underline_position = self.stream.parse_i16()?;
-        let underline_thickness = self.stream.parse_i16()?;
-        let is_fixed_pitch = self.stream.parse_u32()?;
-        let min_mem_type_42 = self.stream.parse_u32()?;
-        let max_mem_type_42 = self.stream.parse_u32()?;
-        let min_mem_type_1 = self.stream.parse_u32()?;
-        let max_mem_type_1 = self.stream.parse_u32()?;
+    pub(crate) const fn parse(&mut self) -> Option<PostTable<'a>> {
+        let version = att!(self.stream.parse_u32());
+        let italic_angle = Fixed::from_u32(att!(self.stream.parse_u32()));
+        let underline_position = att!(self.stream.parse_i16());
+        let underline_thickness = att!(self.stream.parse_i16());
+        let is_fixed_pitch = att!(self.stream.parse_u32());
+        let min_mem_type_42 = att!(self.stream.parse_u32());
+        let max_mem_type_42 = att!(self.stream.parse_u32());
+        let min_mem_type_1 = att!(self.stream.parse_u32());
+        let max_mem_type_1 = att!(self.stream.parse_u32());
         match version {
             0x00010000 => Some(PostTable::Version1_0(PostVersion1_0 {
                 version,
@@ -173,8 +175,8 @@ impl<'a> PostParser<'a> {
                 max_mem_type_1,
             })),
             0x00020000 => {
-                let num_glyphs = self.stream.parse_u16()?;
-                let glyph_name_index = self.stream.parse_slice(num_glyphs as usize)?;
+                let num_glyphs = att!(self.stream.parse_u16());
+                let glyph_name_index = att!(self.stream.parse_slice(num_glyphs as usize));
                 let string_data = self.stream.parse_slice_rest();
 
                 Some(PostTable::Version2_0(PostVersion2_0 {
@@ -193,8 +195,8 @@ impl<'a> PostParser<'a> {
                 }))
             }
             0x00025000 => {
-                let num_glyphs = self.stream.parse_u16()?;
-                let offset = self.stream.parse_slice(num_glyphs as usize)?;
+                let num_glyphs = att!(self.stream.parse_u16());
+                let offset = att!(self.stream.parse_slice(num_glyphs as usize));
 
                 Some(PostTable::Version2_5(PostVersion2_5 {
                     version,
@@ -227,10 +229,13 @@ impl<'a> PostParser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_post(&self, input: TableRecord) -> Option<PostTable<'a>> {
+    pub const fn parse_post(&self, input: TableRecord) -> Option<PostTable<'a>> {
         if input.table_tag.is_post() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = PostParser::new(bytes);
             return parser.parse();
         }

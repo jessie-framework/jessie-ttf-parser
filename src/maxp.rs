@@ -1,6 +1,7 @@
 use crate::parser::Parser;
 use crate::parser::TableRecord;
 use crate::stream::Stream;
+use crate::util::slice_range;
 
 /// This table establishes the memory requirements for this font. Fonts with CFF or CFF2 outlines must use Version 0.5 of this table, specifying only the numGlyphs field. Fonts with TrueType outlines must use Version 1.0 of this table, where all data is required.
 #[derive(Clone, Debug)]
@@ -10,7 +11,7 @@ pub enum MaxpTable {
 }
 
 impl MaxpTable {
-    pub fn num_glyphs(&self) -> u16 {
+    pub const fn num_glyphs(&self) -> u16 {
         match self {
             Self::Version0_5(t) => t.num_glyphs,
             Self::Version1_0(t) => t.num_glyphs,
@@ -67,45 +68,93 @@ pub(crate) struct MaxpParser<'a> {
 }
 
 impl<'a> MaxpParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<MaxpTable> {
-        let version = self.stream.parse_u32()?;
-        let num_glyphs = self.stream.parse_u16()?;
+    pub(crate) const fn parse(&mut self) -> Option<MaxpTable> {
+        let version = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let num_glyphs = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         match version {
             0x00005000 => Some(MaxpTable::Version0_5(MaxpVersion0_5 {
                 version,
                 num_glyphs,
             })),
             0x00010000 => Some(MaxpTable::Version1_0(
-                self.parse_version1_0(version, num_glyphs)?,
+                match self.parse_version1_0(version, num_glyphs) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             _ => None,
         }
     }
 
-    pub(crate) fn parse_version1_0(
+    pub(crate) const fn parse_version1_0(
         &mut self,
         version: u32,
         num_glyphs: u16,
     ) -> Option<MaxpVersion1_0> {
-        let max_points = self.stream.parse_u16()?;
-        let max_contours = self.stream.parse_u16()?;
-        let max_composite_points = self.stream.parse_u16()?;
-        let max_composite_contours = self.stream.parse_u16()?;
-        let max_zones = self.stream.parse_u16()?;
-        let max_twilight_points = self.stream.parse_u16()?;
-        let max_storage = self.stream.parse_u16()?;
-        let max_function_defs = self.stream.parse_u16()?;
-        let max_instruction_defs = self.stream.parse_u16()?;
-        let max_stack_elements = self.stream.parse_u16()?;
-        let max_size_of_instructions = self.stream.parse_u16()?;
-        let max_component_elements = self.stream.parse_u16()?;
-        let max_component_depth = self.stream.parse_u16()?;
+        let max_points = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_contours = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_composite_points = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_composite_contours = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_zones = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_twilight_points = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_storage = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_function_defs = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_instruction_defs = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_stack_elements = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_size_of_instructions = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_component_elements = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let max_component_depth = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(MaxpVersion1_0 {
             version,
             num_glyphs,
@@ -128,8 +177,11 @@ impl<'a> MaxpParser<'a> {
 impl<'a> Parser<'a> {
     pub fn parse_maxp(&self, input: TableRecord) -> Option<MaxpTable> {
         if input.table_tag.is_maxp() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = MaxpParser::new(bytes);
             return parser.parse();
         }

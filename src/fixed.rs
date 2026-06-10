@@ -8,7 +8,7 @@ pub struct Fixed {
 }
 
 impl Fixed {
-    pub fn from_u32(input: u32) -> Self {
+    pub const fn from_u32(input: u32) -> Self {
         let num = (input << 16) as u16;
         let frac = (input >> 16) as u16;
         Fixed { num, frac }

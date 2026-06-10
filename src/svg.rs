@@ -1,7 +1,9 @@
 use crate::{
+    att,
     endian::{U16BE, U32BE},
     parser::{Parser, TableRecord},
     stream::Stream,
+    util::{slice_range, slice_rest},
 };
 
 #[repr(C)]
@@ -39,8 +41,8 @@ pub struct SVGDocumentList<'a> {
 }
 
 impl<'a> SVGDocumentList<'a> {
-    pub fn parse_document_record(&self, input: SVGDocumentRecord) -> Option<&'a str> {
-        let bytes = &self.data[input.svg_doc_offset.into_u32() as usize..];
+    pub const fn parse_document_record(&self, input: SVGDocumentRecord) -> Option<&'a str> {
+        let bytes = slice_rest(self.data, input.svg_doc_offset.into_u32() as usize);
         let mut stream = Stream::new(bytes);
         stream.parse_utf8(input.svg_doc_length.into_u32() as usize)
     }
@@ -64,18 +66,21 @@ pub(crate) struct SVGParser<'a> {
 }
 
 impl<'a> SVGParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<SVGTable<'a>> {
-        let version = self.stream.parse_u16()?;
-        let svg_document_list_offset = self.stream.parse_u32()?;
-        let reserved = self.stream.parse_u32()?;
-        let mut parser = Self::new(&self.stream.bytes[svg_document_list_offset as usize..]);
-        let svg_document_list = parser.parse_svg_document_list()?;
+    pub(crate) const fn parse(&mut self) -> Option<SVGTable<'a>> {
+        let version = att!(self.stream.parse_u16());
+        let svg_document_list_offset = att!(self.stream.parse_u32());
+        let reserved = att!(self.stream.parse_u32());
+        let mut parser = Self::new(slice_rest(
+            self.stream.bytes,
+            svg_document_list_offset as usize,
+        ));
+        let svg_document_list = att!(parser.parse_svg_document_list());
         Some(SVGTable {
             version,
             svg_document_list_offset,
@@ -84,9 +89,9 @@ impl<'a> SVGParser<'a> {
         })
     }
 
-    pub(crate) fn parse_svg_document_list(&mut self) -> Option<SVGDocumentList<'a>> {
-        let num_entries = self.stream.parse_u16()?;
-        let document_records = self.stream.parse_slice(num_entries as usize)?;
+    pub(crate) const fn parse_svg_document_list(&mut self) -> Option<SVGDocumentList<'a>> {
+        let num_entries = att!(self.stream.parse_u16());
+        let document_records = att!(self.stream.parse_slice(num_entries as usize));
         let data = self.stream.bytes;
         Some(SVGDocumentList {
             num_entries,
@@ -97,10 +102,13 @@ impl<'a> SVGParser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_svg(&self, input: TableRecord) -> Option<SVGTable<'a>> {
+    pub const fn parse_svg(&self, input: TableRecord) -> Option<SVGTable<'a>> {
         if input.table_tag.is_svg() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = SVGParser::new(bytes);
             return parser.parse();
         }

@@ -1,6 +1,7 @@
 use crate::{
     parser::{Parser, TableRecord},
     stream::Stream,
+    util::slice_range,
 };
 
 #[derive(Debug, Clone)]
@@ -14,23 +15,26 @@ pub(crate) struct FpgmParser<'a> {
 }
 
 impl<'a> FpgmParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<FpgmTable<'a>> {
+    pub(crate) const fn parse(&mut self) -> Option<FpgmTable<'a>> {
         let inner = self.stream.parse_slice_rest();
         Some(FpgmTable(inner))
     }
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_fpgm(&self, input: TableRecord) -> Option<FpgmTable<'a>> {
+    pub const fn parse_fpgm(&self, input: TableRecord) -> Option<FpgmTable<'a>> {
         if input.table_tag.is_fpgm() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = FpgmParser::new(bytes);
             return parser.parse();
         }

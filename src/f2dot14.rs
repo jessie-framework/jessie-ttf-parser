@@ -4,6 +4,11 @@ pub struct F2Dot14(f32);
 
 impl F2Dot14 {
     #[inline]
+    pub const fn default() -> Self {
+        Self(0.)
+    }
+
+    #[inline]
     pub const fn from_f32(input: f32) -> Self {
         Self(input)
     }

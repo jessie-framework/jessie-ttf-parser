@@ -3,6 +3,7 @@ use crate::{
     longdatetime::LongDateTime,
     parser::{Parser, TableRecord},
     stream::Stream,
+    util::slice_range,
 };
 
 pub(crate) struct HeadParser<'a> {
@@ -10,31 +11,85 @@ pub(crate) struct HeadParser<'a> {
 }
 
 impl<'a> HeadParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    fn parse(&mut self) -> Option<HeadTable> {
-        let major_version = self.stream.parse_u16()?;
-        let minor_version = self.stream.parse_u16()?;
-        let font_revision = Fixed::from_u32(self.stream.parse_u32()?);
-        let checksum_adjustment = self.stream.parse_u32()?;
-        let magic_number = self.stream.parse_u32()?;
-        let flags = self.stream.parse_u16()?;
-        let units_per_em = self.stream.parse_u16()?;
-        let created = self.stream.parse_i64()?;
-        let modified = self.stream.parse_i64()?;
-        let x_min = self.stream.parse_i16()?;
-        let y_min = self.stream.parse_i16()?;
-        let x_max = self.stream.parse_i16()?;
-        let y_max = self.stream.parse_i16()?;
-        let mac_style = self.stream.parse_u16()?;
-        let lowest_rec_ppem = self.stream.parse_u16()?;
-        let font_direction_hint = self.stream.parse_i16()?;
-        let index_to_loc_format = self.stream.parse_i16()?;
-        let glyph_data_format = self.stream.parse_i16()?;
+    const fn parse(&mut self) -> Option<HeadTable> {
+        let major_version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let minor_version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let font_revision = Fixed::from_u32(match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        });
+        let checksum_adjustment = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let magic_number = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let flags = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let units_per_em = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let created = match self.stream.parse_i64() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let modified = match self.stream.parse_i64() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let x_min = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let y_min = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let x_max = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let y_max = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let mac_style = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let lowest_rec_ppem = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let font_direction_hint = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let index_to_loc_format = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let glyph_data_format = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(HeadTable {
             major_version,
             minor_version,
@@ -135,10 +190,13 @@ pub struct HeadTable {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_head(&self, input: TableRecord) -> Option<HeadTable> {
+    pub const fn parse_head(&self, input: TableRecord) -> Option<HeadTable> {
         if input.table_tag.is_head() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = HeadParser::new(bytes);
             return parser.parse();
         }

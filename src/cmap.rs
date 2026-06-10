@@ -1,6 +1,7 @@
 use crate::{
     endian::{I16BE, U16BE, U24BE, U32BE},
     parser::{Parser, TableRecord},
+    util::{SliceIter, slice_range, slice_rest},
 };
 
 pub(crate) struct CmapParser<'a> {
@@ -8,16 +9,25 @@ pub(crate) struct CmapParser<'a> {
 }
 
 impl<'a> CmapParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: crate::stream::Stream::new(bytes),
         }
     }
 
-    fn parse(&mut self) -> Option<CmapHeader<'a>> {
-        let version = self.stream.parse_u16()?;
-        let num_tables = self.stream.parse_u16()?;
-        let encoding_records = self.stream.parse_slice(num_tables as usize)?;
+    const fn parse(&mut self) -> Option<CmapHeader<'a>> {
+        let version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let num_tables = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let encoding_records = match self.stream.parse_slice(num_tables as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(CmapHeader {
             version,
             num_tables,
@@ -26,49 +36,88 @@ impl<'a> CmapParser<'a> {
         })
     }
 
-    fn parse_encoding_record(&mut self, input: EncodingRecord) -> Option<CmapSubtable<'a>> {
-        let bytes = &self.stream.bytes[input.subtable_offset.into_u32() as usize..];
+    const fn parse_encoding_record(&mut self, input: EncodingRecord) -> Option<CmapSubtable<'a>> {
+        let bytes = slice_rest(self.stream.bytes, input.subtable_offset.into_u32() as usize);
         let mut parser = Self::new(bytes);
-        let format = parser.stream.parse_u16()?;
+        let format = match parser.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         match format {
             0 => Some(CmapSubtable::ByteEncodingTable(
-                parser.parse_byte_encoding_table(format)?,
+                match parser.parse_byte_encoding_table(format) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             2 => Some(CmapSubtable::HighByteMappingThroughTable(
-                parser.parse_high_byte_mapping_through_table(format)?,
+                match parser.parse_high_byte_mapping_through_table(format) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             4 => Some(CmapSubtable::SegmentMappingToDeltaValues(
-                parser.parse_segment_mapping_to_delta_values(format)?,
+                match parser.parse_segment_mapping_to_delta_values(format) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             6 => Some(CmapSubtable::TrimmedTableMapping(
-                parser.parse_trimmed_table_mapping(format)?,
+                match parser.parse_trimmed_table_mapping(format) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             8 => Some(CmapSubtable::Mixed16BitAnd32BitCoverage(
-                parser.parse_mixed_16_bit_and_32_bit_coverage(format)?,
+                match parser.parse_mixed_16_bit_and_32_bit_coverage(format) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             10 => Some(CmapSubtable::TrimmedArray(
-                parser.parse_trimmed_array(format)?,
+                match parser.parse_trimmed_array(format) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             12 => Some(CmapSubtable::SegmentedCoverage(
-                parser.parse_segmented_coverage(format)?,
+                match parser.parse_segmented_coverage(format) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             13 => Some(CmapSubtable::ManyToOneRangeMappings(
-                parser.parse_many_to_one_range_mappings(format)?,
+                match parser.parse_many_to_one_range_mappings(format) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             14 => Some(CmapSubtable::UnicodeVariationSequences(
-                parser.parse_unicode_variation_sequences(format)?,
+                match parser.parse_unicode_variation_sequences(format) {
+                    Some(v) => v,
+                    _ => return None,
+                },
             )),
             _ => None,
         }
     }
 
-    fn parse_unicode_variation_sequences(
+    const fn parse_unicode_variation_sequences(
         &mut self,
         format: u16,
     ) -> Option<CmapUnicodeVariationSequences<'a>> {
-        let length = self.stream.parse_u32()?;
-        let num_var_selector_records = self.stream.parse_u32()?;
-        let var_selector = self.stream.parse_slice(num_var_selector_records as usize)?;
+        let length = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let num_var_selector_records = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let var_selector = match self.stream.parse_slice(num_var_selector_records as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(CmapUnicodeVariationSequences {
             format,
             length,
@@ -78,15 +127,30 @@ impl<'a> CmapParser<'a> {
         })
     }
 
-    fn parse_many_to_one_range_mappings(
+    const fn parse_many_to_one_range_mappings(
         &mut self,
         format: u16,
     ) -> Option<CmapManyToOneRangeMappings<'a>> {
-        let reserved = self.stream.parse_u16()?;
-        let length = self.stream.parse_u32()?;
-        let language = self.stream.parse_u32()?;
-        let num_groups = self.stream.parse_u32()?;
-        let groups = self.stream.parse_slice(num_groups as usize)?;
+        let reserved = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let length = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let language = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let num_groups = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let groups = match self.stream.parse_slice(num_groups as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(CmapManyToOneRangeMappings {
             format,
             reserved,
@@ -98,12 +162,27 @@ impl<'a> CmapParser<'a> {
         })
     }
 
-    fn parse_segmented_coverage(&mut self, format: u16) -> Option<CmapSegmentedCoverage<'a>> {
-        let reserved = self.stream.parse_u16()?;
-        let length = self.stream.parse_u32()?;
-        let language = self.stream.parse_u32()?;
-        let num_groups = self.stream.parse_u32()?;
-        let groups = self.stream.parse_slice(num_groups as usize)?;
+    const fn parse_segmented_coverage(&mut self, format: u16) -> Option<CmapSegmentedCoverage<'a>> {
+        let reserved = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let length = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let language = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let num_groups = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let groups = match self.stream.parse_slice(num_groups as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(CmapSegmentedCoverage {
             format,
             reserved,
@@ -114,13 +193,28 @@ impl<'a> CmapParser<'a> {
         })
     }
 
-    fn parse_trimmed_array(&mut self, format: u16) -> Option<CmapTrimmedArray<'a>> {
-        let reserved = self.stream.parse_u16()?;
-        let length = self.stream.parse_u32()?;
-        self.stream.bytes = &self.stream.bytes[..length as usize];
-        let language = self.stream.parse_u32()?;
-        let start_char_code = self.stream.parse_u32()?;
-        let num_chars = self.stream.parse_u32()?;
+    const fn parse_trimmed_array(&mut self, format: u16) -> Option<CmapTrimmedArray<'a>> {
+        let reserved = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let length = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        self.stream.bytes = slice_rest(self.stream.bytes, length as usize);
+        let language = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let start_char_code = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let num_chars = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
         let glyph_id_array = self.stream.parse_slice_rest();
         Some(CmapTrimmedArray {
             format,
@@ -133,16 +227,34 @@ impl<'a> CmapParser<'a> {
         })
     }
 
-    fn parse_mixed_16_bit_and_32_bit_coverage(
+    const fn parse_mixed_16_bit_and_32_bit_coverage(
         &mut self,
         format: u16,
     ) -> Option<CmapMixed16BitAnd32BitCoverage<'a>> {
-        let reserved = self.stream.parse_u16()?;
-        let length = self.stream.parse_u32()?;
-        let language = self.stream.parse_u32()?;
-        let is_32 = self.stream.parse_slice(8192)?;
-        let num_groups = self.stream.parse_u32()?;
-        let groups = self.stream.parse_slice(num_groups as usize)?;
+        let reserved = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let length = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let language = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let is_32 = match self.stream.parse_slice(8192) {
+            Some(v) => v,
+            _ => return None,
+        };
+        let num_groups = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let groups = match self.stream.parse_slice(num_groups as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(CmapMixed16BitAnd32BitCoverage {
             format,
             reserved,
@@ -155,12 +267,30 @@ impl<'a> CmapParser<'a> {
         })
     }
 
-    fn parse_trimmed_table_mapping(&mut self, format: u16) -> Option<CmapTrimmedTableMapping<'a>> {
-        let length = self.stream.parse_u16()?;
-        let language = self.stream.parse_u16()?;
-        let first_code = self.stream.parse_u16()?;
-        let entry_count = self.stream.parse_u16()?;
-        let glyph_id_array = self.stream.parse_slice(entry_count as usize)?;
+    const fn parse_trimmed_table_mapping(
+        &mut self,
+        format: u16,
+    ) -> Option<CmapTrimmedTableMapping<'a>> {
+        let length = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let language = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let first_code = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let entry_count = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let glyph_id_array = match self.stream.parse_slice(entry_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(CmapTrimmedTableMapping {
             format,
             length,
@@ -172,23 +302,56 @@ impl<'a> CmapParser<'a> {
         })
     }
 
-    fn parse_segment_mapping_to_delta_values(
+    const fn parse_segment_mapping_to_delta_values(
         &mut self,
         format: u16,
     ) -> Option<CmapSegmentMappingToDeltaValues<'a>> {
-        let length = self.stream.parse_u16()?;
-        self.stream.bytes = &self.stream.bytes[..length as usize];
-        let language = self.stream.parse_u16()?;
-        let seg_count_x_2 = self.stream.parse_u16()?;
+        let length = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        self.stream.bytes = slice_rest(self.stream.bytes, length as usize);
+        let language = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let seg_count_x_2 = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         let seg_count = (seg_count_x_2 / 2) as usize;
-        let search_range = self.stream.parse_u16()?;
-        let entry_selector = self.stream.parse_u16()?;
-        let range_shift = self.stream.parse_u16()?;
-        let end_code = self.stream.parse_slice(seg_count)?;
-        let reserved_pad = self.stream.parse_u16()?;
-        let start_code = self.stream.parse_slice(seg_count)?;
-        let id_delta = self.stream.parse_slice(seg_count)?;
-        let id_range_offset = self.stream.parse_slice(seg_count)?;
+        let search_range = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let entry_selector = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let range_shift = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let end_code = match self.stream.parse_slice(seg_count) {
+            Some(v) => v,
+            _ => return None,
+        };
+        let reserved_pad = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let start_code = match self.stream.parse_slice(seg_count) {
+            Some(v) => v,
+            _ => return None,
+        };
+        let id_delta = match self.stream.parse_slice(seg_count) {
+            Some(v) => v,
+            _ => return None,
+        };
+        let id_range_offset = match self.stream.parse_slice(seg_count) {
+            Some(v) => v,
+            _ => return None,
+        };
         let glyph_id_array = self.stream.parse_slice_rest();
         Some(CmapSegmentMappingToDeltaValues {
             format,
@@ -208,16 +371,28 @@ impl<'a> CmapParser<'a> {
         })
     }
 
-    fn parse_high_byte_mapping_through_table(
+    const fn parse_high_byte_mapping_through_table(
         &mut self,
         format: u16,
     ) -> Option<CmapHighByteMappingThroughTable<'a>> {
-        let length = self.stream.parse_u16()?;
-        self.stream.bytes = &self.stream.bytes[..length as usize];
-        let language = self.stream.parse_u16()?;
-        let sub_header_keys: &[U16BE] = self.stream.parse_slice(256)?;
-        let sub_header_count = sub_header_keys.iter().map(|x| x.into_u16()).max().unwrap() / 8 + 1;
-        let sub_headers = self.stream.parse_slice(sub_header_count as usize)?;
+        let length = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        self.stream.bytes = slice_rest(self.stream.bytes, length as usize);
+        let language = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let sub_header_keys: &[U16BE] = match self.stream.parse_slice(256) {
+            Some(v) => v,
+            _ => return None,
+        };
+        let sub_header_count = SliceIter::new(sub_header_keys).max().unwrap() / 8 + 1;
+        let sub_headers = match self.stream.parse_slice(sub_header_count as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         let glyph_id_array = self.stream.parse_slice_rest();
         Some(CmapHighByteMappingThroughTable {
             format,
@@ -230,10 +405,22 @@ impl<'a> CmapParser<'a> {
         })
     }
 
-    fn parse_byte_encoding_table(&mut self, format: u16) -> Option<CmapByteEncodingTable<'a>> {
-        let length = core::cmp::min(256, self.stream.parse_u16()?);
-        let language = self.stream.parse_u16()?;
-        let glyph_id_array = self.stream.parse_slice(256)?;
+    const fn parse_byte_encoding_table(
+        &mut self,
+        format: u16,
+    ) -> Option<CmapByteEncodingTable<'a>> {
+        let length = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let language = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let glyph_id_array = match self.stream.parse_slice(256) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(CmapByteEncodingTable {
             format,
             length,
@@ -242,18 +429,30 @@ impl<'a> CmapParser<'a> {
         })
     }
 
-    fn parse_default_uvs_table(&mut self) -> Option<DefaultUVS<'a>> {
-        let num_unicode_value_ranges = self.stream.parse_u32()?;
-        let ranges = self.stream.parse_slice(num_unicode_value_ranges as usize)?;
+    const fn parse_default_uvs_table(&mut self) -> Option<DefaultUVS<'a>> {
+        let num_unicode_value_ranges = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let ranges = match self.stream.parse_slice(num_unicode_value_ranges as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(DefaultUVS {
             num_unicode_value_ranges,
             ranges,
         })
     }
 
-    fn parse_non_default_uvs_table(&mut self) -> Option<NonDefaultUVS<'a>> {
-        let num_uvs_mappings = self.stream.parse_u32()?;
-        let uvs_mappings = self.stream.parse_slice(num_uvs_mappings as usize)?;
+    const fn parse_non_default_uvs_table(&mut self) -> Option<NonDefaultUVS<'a>> {
+        let num_uvs_mappings = match self.stream.parse_u32() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let uvs_mappings = match self.stream.parse_slice(num_uvs_mappings as usize) {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(NonDefaultUVS {
             num_uvs_mappings,
             uvs_mappings,
@@ -502,17 +701,20 @@ pub struct CmapUnicodeVariationSequences<'a> {
 }
 
 impl<'a> CmapUnicodeVariationSequences<'a> {
-    pub fn parse_default_uvs_table(&self, input: VariationSelector) -> Option<DefaultUVS<'a>> {
-        let bytes = &self.bytes[input.default_uvs_offset.into_u32() as usize..];
+    pub const fn parse_default_uvs_table(
+        &self,
+        input: VariationSelector,
+    ) -> Option<DefaultUVS<'a>> {
+        let bytes = slice_rest(self.bytes, input.default_uvs_offset.into_u32() as usize);
         let mut parser = CmapParser::new(bytes);
         parser.parse_default_uvs_table()
     }
 
-    pub fn parse_non_default_uvs_table(
+    pub const fn parse_non_default_uvs_table(
         &self,
         input: VariationSelector,
     ) -> Option<NonDefaultUVS<'a>> {
-        let bytes = &self.bytes[input.non_default_uvs_offset.into_u32() as usize..];
+        let bytes = slice_rest(self.bytes, input.non_default_uvs_offset.into_u32() as usize);
         let mut parser = CmapParser::new(bytes);
         parser.parse_non_default_uvs_table()
     }
@@ -574,7 +776,7 @@ pub struct CmapHeader<'a> {
 }
 
 impl<'a> CmapHeader<'a> {
-    pub fn parse_encoding_record(&self, record: EncodingRecord) -> Option<CmapSubtable<'a>> {
+    pub const fn parse_encoding_record(&self, record: EncodingRecord) -> Option<CmapSubtable<'a>> {
         let mut parser = CmapParser::new(self.bytes);
         parser.parse_encoding_record(record)
     }
@@ -593,127 +795,130 @@ pub struct EncodingRecord {
 
 impl EncodingRecord {
     #[inline]
-    pub fn is_unicode(&self) -> bool {
+    pub const fn is_unicode(&self) -> bool {
         self.platform_id.into_u16() == 0
     }
     #[inline]
-    pub fn is_macintosh(&self) -> bool {
+    pub const fn is_macintosh(&self) -> bool {
         self.platform_id.into_u16() == 1
     }
     #[inline]
-    pub fn is_iso(&self) -> bool {
+    pub const fn is_iso(&self) -> bool {
         self.platform_id.into_u16() == 2
     }
     #[inline]
-    pub fn is_windows(&self) -> bool {
+    pub const fn is_windows(&self) -> bool {
         self.platform_id.into_u16() == 3
     }
     #[inline]
-    pub fn is_custom(&self) -> bool {
+    pub const fn is_custom(&self) -> bool {
         self.platform_id.into_u16() == 4
     }
     /// Unicode 1.0 semantics—deprecated
     #[inline]
-    pub fn unicode_is_unicode_v1_0(&self) -> bool {
+    pub const fn unicode_is_unicode_v1_0(&self) -> bool {
         self.is_unicode() && self.encoding_id.into_u16() == 0
     }
     /// Unicode 1.1 semantics—deprecated
     #[inline]
-    pub fn unicode_is_unicode_v_1_1(&self) -> bool {
+    pub const fn unicode_is_unicode_v_1_1(&self) -> bool {
         self.is_unicode() && self.encoding_id.into_u16() == 1
     }
     /// ISO/IEC 10646 semantics—deprecated
     #[inline]
-    pub fn unicode_is_iso_10646(&self) -> bool {
+    pub const fn unicode_is_iso_10646(&self) -> bool {
         self.is_unicode() && self.encoding_id.into_u16() == 2
     }
     /// Unicode 2.0 and onwards semantics, Unicode BMP only
     #[inline]
-    pub fn unicode_is_unicode_v2_0_bmp_only(&self) -> bool {
+    pub const fn unicode_is_unicode_v2_0_bmp_only(&self) -> bool {
         self.is_unicode() && self.encoding_id.into_u16() == 3
     }
     /// Unicode 2.0 and onwards semantics, Unicode full repertoire
     #[inline]
-    pub fn unicode_is_unicode_v2_0_full_repertoire(&self) -> bool {
+    pub const fn unicode_is_unicode_v2_0_full_repertoire(&self) -> bool {
         self.is_unicode() && self.encoding_id.into_u16() == 4
     }
     /// Unicode variation sequences—for use with subtable format 14
     #[inline]
-    pub fn unicode_is_unicode_variation_sequences(&self) -> bool {
+    pub const fn unicode_is_unicode_variation_sequences(&self) -> bool {
         self.is_unicode() && self.encoding_id.into_u16() == 5
     }
     /// Unicode full repertoire—for use with subtable format 13
     #[inline]
-    pub fn unicode_is_unicode_full_repertoire(&self) -> bool {
+    pub const fn unicode_is_unicode_full_repertoire(&self) -> bool {
         self.is_unicode() && self.encoding_id.into_u16() == 6
     }
     /// 7-bit ASCII
     #[inline]
-    pub fn iso_is_7_bit_ascii(&self) -> bool {
+    pub const fn iso_is_7_bit_ascii(&self) -> bool {
         self.is_iso() && self.encoding_id.into_u16() == 0
     }
     /// ISO 10646
     #[inline]
-    pub fn iso_is_iso_10646(&self) -> bool {
+    pub const fn iso_is_iso_10646(&self) -> bool {
         self.is_iso() && self.encoding_id.into_u16() == 1
     }
     /// ISO 8859-1
     #[inline]
-    pub fn iso_is_iso_8859_1(&self) -> bool {
+    pub const fn iso_is_iso_8859_1(&self) -> bool {
         self.is_iso() && self.encoding_id.into_u16() == 2
     }
     /// Symbol
     #[inline]
-    pub fn windows_is_symbol(&self) -> bool {
+    pub const fn windows_is_symbol(&self) -> bool {
         self.is_windows() && self.encoding_id.into_u16() == 0
     }
     /// Unicode BMP
     #[inline]
-    pub fn windows_is_unicode_bmp(&self) -> bool {
+    pub const fn windows_is_unicode_bmp(&self) -> bool {
         self.is_windows() && self.encoding_id.into_u16() == 1
     }
     /// ShiftJIS
     #[inline]
-    pub fn windows_is_shiftjis(&self) -> bool {
+    pub const fn windows_is_shiftjis(&self) -> bool {
         self.is_windows() && self.encoding_id.into_u16() == 2
     }
     /// PRC
     #[inline]
-    pub fn windows_is_prc(&self) -> bool {
+    pub const fn windows_is_prc(&self) -> bool {
         self.is_windows() && self.encoding_id.into_u16() == 3
     }
     /// Big5
     #[inline]
-    pub fn windows_is_big5(&self) -> bool {
+    pub const fn windows_is_big5(&self) -> bool {
         self.is_windows() && self.encoding_id.into_u16() == 4
     }
     /// Wansung
     #[inline]
-    pub fn windows_is_wansung(&self) -> bool {
+    pub const fn windows_is_wansung(&self) -> bool {
         self.is_windows() && self.encoding_id.into_u16() == 5
     }
     /// Johab
     #[inline]
-    pub fn windows_is_johab(&self) -> bool {
+    pub const fn windows_is_johab(&self) -> bool {
         self.is_windows() && self.encoding_id.into_u16() == 6
     }
     /// Unicode full repertoire
     #[inline]
-    pub fn windows_is_unicode_full_repertoire(&self) -> bool {
+    pub const fn windows_is_unicode_full_repertoire(&self) -> bool {
         self.is_windows() && self.encoding_id.into_u16() == 10
     }
     /// OTF Windows NT compatibility mapping
     #[inline]
-    pub fn custom_is_windows_nt_compatibility_mapping(&self) -> bool {
+    pub const fn custom_is_windows_nt_compatibility_mapping(&self) -> bool {
         self.is_custom() && self.encoding_id.into_u16() <= 255
     }
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_cmap(&self, input: TableRecord) -> Option<CmapHeader<'a>> {
+    pub const fn parse_cmap(&self, input: TableRecord) -> Option<CmapHeader<'a>> {
         if input.table_tag.is_cmap() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = CmapParser::new(bytes);
             return parser.parse();
         }

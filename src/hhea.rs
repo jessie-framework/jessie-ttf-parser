@@ -1,4 +1,7 @@
-use crate::{fword::FWord, parser::Parser, parser::TableRecord, stream::Stream, ufword::UFWord};
+use crate::{
+    fword::FWord, parser::Parser, parser::TableRecord, stream::Stream, ufword::UFWord,
+    util::slice_range,
+};
 
 /// This table contains information for horizontal layout. The values in the minRightSidebearing, minLeftSideBearing and xMaxExtent should be computed using only glyphs that have contours. Glyphs with no contours should be ignored for the purposes of these calculations. All reserved areas must be set to 0.
 #[repr(C)]
@@ -49,31 +52,85 @@ pub(crate) struct HheaParser<'a> {
 }
 
 impl<'a> HheaParser<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self {
             stream: Stream::new(bytes),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Option<HheaTable> {
-        let major_version = self.stream.parse_u16()?;
-        let minor_version = self.stream.parse_u16()?;
-        let ascender = self.stream.parse_u16()?;
-        let descender = self.stream.parse_u16()?;
-        let line_gap = self.stream.parse_i16()?;
-        let advance_width_max = self.stream.parse_u16()?;
-        let min_left_side_bearing = self.stream.parse_i16()?;
-        let min_right_side_bearing = self.stream.parse_i16()?;
-        let x_max_extent = self.stream.parse_i16()?;
-        let caret_slope_rise = self.stream.parse_i16()?;
-        let caret_slope_run = self.stream.parse_i16()?;
-        let caret_offset = self.stream.parse_i16()?;
-        let reserved1 = self.stream.parse_i16()?;
-        let reserved2 = self.stream.parse_i16()?;
-        let reserved3 = self.stream.parse_i16()?;
-        let reserved4 = self.stream.parse_i16()?;
-        let metric_data_format = self.stream.parse_i16()?;
-        let number_of_h_metrics = self.stream.parse_u16()?;
+    pub(crate) const fn parse(&mut self) -> Option<HheaTable> {
+        let major_version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let minor_version = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let ascender = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let descender = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let line_gap = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let advance_width_max = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let min_left_side_bearing = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let min_right_side_bearing = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let x_max_extent = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let caret_slope_rise = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let caret_slope_run = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let caret_offset = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let reserved1 = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let reserved2 = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let reserved3 = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let reserved4 = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let metric_data_format = match self.stream.parse_i16() {
+            Some(v) => v,
+            _ => return None,
+        };
+        let number_of_h_metrics = match self.stream.parse_u16() {
+            Some(v) => v,
+            _ => return None,
+        };
         Some(HheaTable {
             major_version,
             minor_version,
@@ -98,10 +155,13 @@ impl<'a> HheaParser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_hhea(&self, input: TableRecord) -> Option<HheaTable> {
+    pub const fn parse_hhea(&self, input: TableRecord) -> Option<HheaTable> {
         if input.table_tag.is_hhea() {
-            let bytes = &self.stream.bytes[input.offset.into_u32() as usize
-                ..input.offset.into_u32() as usize + input.length.into_u32() as usize];
+            let bytes = slice_range(
+                self.stream.bytes,
+                input.offset.into_u32() as usize
+                    ..input.offset.into_u32() as usize + input.length.into_u32() as usize,
+            );
             let mut parser = HheaParser::new(bytes);
             return parser.parse();
         }
