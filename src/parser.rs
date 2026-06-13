@@ -65,7 +65,7 @@ pub struct TableDirectory<'a> {
     pub table_records: &'a [TableRecord],
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct TableRecord {
     /// Table identifier.

@@ -780,10 +780,24 @@ impl<'a> CmapHeader<'a> {
         let mut parser = CmapParser::new(self.bytes);
         parser.parse_encoding_record(record)
     }
+
+    pub const fn find_segmented_coverage(&self) -> Option<CmapSegmentedCoverage<'a>> {
+        let mut idx = 0;
+        while idx <= self.encoding_records.len() {
+            let encoding_record = self.encoding_records[idx];
+            if let Some(CmapSubtable::SegmentedCoverage(segmented_coverage)) =
+                self.parse_encoding_record(encoding_record)
+            {
+                return Some(segmented_coverage);
+            }
+            idx += 1;
+        }
+        None
+    }
 }
 
 #[repr(C, packed)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub struct EncodingRecord {
     /// Platform ID.
     pub platform_id: U16BE,
