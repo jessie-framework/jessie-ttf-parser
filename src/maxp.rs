@@ -175,7 +175,7 @@ impl<'a> MaxpParser<'a> {
     }
 }
 impl<'a> Parser<'a> {
-    pub fn parse_maxp(&self, input: TableRecord) -> Option<MaxpTable> {
+    pub const fn parse_maxp(&self, input: TableRecord) -> Option<MaxpTable> {
         if input.table_tag.is_maxp() {
             let bytes = slice_range(
                 self.stream.bytes,
